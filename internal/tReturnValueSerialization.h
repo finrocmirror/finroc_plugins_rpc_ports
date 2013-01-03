@@ -19,33 +19,31 @@
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/tResponseHandler.h
+/*!\file    plugins/rpc_ports/internal/tReturnValueSerialization.h
  *
  * \author  Max Reichardt
  *
- * \date    2012-12-08
+ * \date    2012-12-31
  *
- * \brief   Contains tResponseHandler
+ * \brief   Contains tReturnValueSerialization
  *
- * \b tResponseHandler
+ * \b tReturnValueSerialization
  *
- * Handles results that are returned by RPC calls.
+ * Handles serialization of return values of RPC calls.
+ * This is a little complex due to the handling of promises.
  *
  */
 //----------------------------------------------------------------------
-#ifndef __plugins__rpc_ports__tResponseHandler_h__
-#define __plugins__rpc_ports__tResponseHandler_h__
+#ifndef __plugins__rpc_ports__internal__tReturnValueSerialization_h__
+#define __plugins__rpc_ports__internal__tReturnValueSerialization_h__
 
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include <boost/noncopyable.hpp>
 
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
-#include "plugins/rpc_ports/definitions.h"
-#include "plugins/rpc_ports/internal/tAbstractResponseHandler.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -53,6 +51,8 @@
 namespace finroc
 {
 namespace rpc_ports
+{
+namespace internal
 {
 
 //----------------------------------------------------------------------
@@ -62,43 +62,65 @@ namespace rpc_ports
 //----------------------------------------------------------------------
 // Class declaration
 //----------------------------------------------------------------------
-//! RPC call reponse handler
+//! Return value serialization
 /*!
- * Handles results that are returned by RPC calls.
+ * Handles serialization of return values of RPC calls.
+ * This is a little complex due to the handling of promises.
  */
-template <typename T>
-class tResponseHandler : public internal::tAbstractResponseHandler
+template <typename TReturn, bool PROMISE, bool SERIALIZABLE>
+struct tReturnValueSerialization
 {
+  inline static void Serialize(rrlib::serialization::tOutputStream& stream, TReturn& return_value, tCallStorage& storage)
+  {
+    stream << return_value;
+  }
 
-//----------------------------------------------------------------------
-// Public methods and typedefs
-//----------------------------------------------------------------------
-public:
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  {
+    stream >> return_value;
+  }
+};
 
-  /*!
-   * Called whenever a synchronous RPC caused an exception
-   *
-   * \param exception_type Type of error that occured
-   */
-  virtual void HandleException(tFutureStatus exception_type) = 0;
+// Plain promise
+template <typename TReturn>
+struct tReturnValueSerialization<TReturn, true, false>
+{
+  inline static void Serialize(rrlib::serialization::tOutputStream& stream, TReturn& return_value, tCallStorage& storage)
+  {
+    stream << storage.GetCallId();
+  }
 
-  /*!
-   * Called when a result of an RPC call is received
-   *
-   * \param call_result The result of the call
-   */
-  virtual void HandleResponse(T call_result) = 0;
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  {
+    tCallId call_id;
+    stream >> call_id;
+    return_value.SetRemotePromise(function_index, call_id, port);
+  }
+};
 
-//----------------------------------------------------------------------
-// Private fields and methods
-//----------------------------------------------------------------------
-private:
+// Class derived from promise
+template <typename TReturn>
+struct tReturnValueSerialization<TReturn, true, true>
+{
+  inline static void Serialize(rrlib::serialization::tOutputStream& stream, TReturn& return_value, tCallStorage& storage)
+  {
+    stream << storage.GetCallId();
+    stream << return_value;
+  }
 
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  {
+    tCallId call_id;
+    stream >> call_id;
+    return_value.SetRemotePromise(function_index, call_id, port);
+    stream >> return_value;
+  }
 };
 
 //----------------------------------------------------------------------
 // End of namespace declaration
 //----------------------------------------------------------------------
+}
 }
 }
 

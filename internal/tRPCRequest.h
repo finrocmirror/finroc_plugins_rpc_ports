@@ -82,33 +82,44 @@ class tRPCRequest : public tAbstractCall
 {
   typedef std::tuple<typename std::decay<TArgs>::type...> tParameterTuple;
 
+  enum { cNATIVE_FUTURE_FUNCTION = std::is_base_of<internal::tIsFuture, TReturn>::value };
+  typedef typename std::conditional<cNATIVE_FUTURE_FUNCTION, TReturn, tFuture<TReturn>>::type tResponseFuture;
+  typedef typename tResponseFuture::tValue tReturnInternal;
+  enum { cPROMISE_RESULT = std::is_base_of<internal::tIsPromise, tReturnInternal>::value };
+  typedef tReturnValueSerialization<tReturnInternal, cPROMISE_RESULT, rrlib::serialization::tIsBinarySerializable<tReturnInternal>::value> tReturnSerialization;
+
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
 public:
 
-  tRPCRequest(tCallStorage& storage, uint8_t function_index, const rrlib::time::tDuration& timeout, TArgs && ... args) :
+  template <typename ... TCallArgs>
+  tRPCRequest(tCallStorage& storage, uint8_t function_index, const rrlib::time::tDuration& timeout, TCallArgs && ... args) :
     function_index(function_index),
     result_buffer(),
-    parameters(args...),
+    parameters(std::forward<TCallArgs>(args)...),
     storage(storage),
     future_obtained(false),
     timeout(timeout)
-  {}
+  {
+    storage.expects_response = true;
+  }
 
   template <typename TInterface>
-  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tCallId call_id)
+  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id)
   {
     try
     {
       typedef TReturn(TInterface::*tFunctionPointer)(TArgs...);
-      tParameterTuple parameters;
-      stream >> parameters;
+      tCallId remote_call_id;
+      stream >> remote_call_id;
       rrlib::time::tDuration timeout;
       stream >> timeout;
+      tParameterTuple parameters;
+      stream >> parameters;
       tFunctionPointer function_pointer = tRPCInterfaceType<TInterface>::template GetFunction<tFunctionPointer>(function_id);
       tClientPort<TInterface> client_port = tClientPort<TInterface>::Wrap(port);
-      ExecuteCallImplementation<TInterface, tFunctionPointer>(client_port, function_pointer, timeout, parameters, function_id, call_id, typename rrlib::util::tIntegerSequenceGenerator<sizeof...(TArgs)>::type());
+      ExecuteCallImplementation<cNATIVE_FUTURE_FUNCTION, TInterface, tFunctionPointer>(client_port, function_pointer, timeout, parameters, function_id, remote_call_id, typename rrlib::util::tIntegerSequenceGenerator<sizeof...(TArgs)>::type());
     }
     catch (const std::exception& e)
     {
@@ -119,14 +130,14 @@ public:
   /*!
    * \return Future to wait for result
    */
-  tFuture<TReturn> GetFuture()
+  tResponseFuture GetFuture()
   {
     if (future_obtained)
     {
       throw std::runtime_error("Future already obtained");
     }
     future_obtained = true;
-    return tFuture<TReturn>(storage.ObtainFuturePointer(), result_buffer);
+    return tResponseFuture(storage.ObtainFuturePointer(), result_buffer);
   }
 
   /*!
@@ -144,7 +155,7 @@ public:
    *
    * \param return_value Returned value
    */
-  void ReturnValue(TReturn && return_value)
+  void ReturnValue(tReturnInternal && return_value)
   {
     tFutureStatus current = (tFutureStatus)storage.future_status.load();
     if (current != tFutureStatus::PENDING)
@@ -154,12 +165,13 @@ public:
     }
 
     rrlib::thread::tLock lock(storage.mutex);
-    result_buffer = return_value;
+    result_buffer = std::move(return_value);
     storage.future_status.store((int)tFutureStatus::READY);
     storage.condition_variable.notify_one();
     if (storage.response_handler)
     {
-      static_cast<tResponseHandler<TReturn>*>(storage.response_handler)->HandleResponse(return_value);
+      lock.Unlock();
+      static_cast<tResponseHandler<tReturnInternal>*>(storage.response_handler)->HandleResponse(std::move(return_value));
     }
   }
 
@@ -185,7 +197,7 @@ private:
   uint8_t function_index;
 
   /*! Result will be stored here */
-  TReturn result_buffer;
+  tReturnInternal result_buffer;
 
   /*! Parameters of RPC call */
   tParameterTuple parameters;
@@ -199,15 +211,17 @@ private:
   /*! Timeout for call */
   rrlib::time::tDuration timeout;
 
-  template <typename TInterface, typename TFunction, int ... SEQUENCE>
-  static void ExecuteCallImplementation(tClientPort<TInterface>& client_port, TFunction function_pointer, const rrlib::time::tDuration& timeout, tParameterTuple& parameters, uint8_t function_id, tCallId call_id, rrlib::util::tIntegerSequence<SEQUENCE...> sequence)
+  template <bool NATIVE_FUTURE_CALL, typename TInterface, typename TFunction, int ... SEQUENCE>
+  static void ExecuteCallImplementation(typename std::enable_if < !NATIVE_FUTURE_CALL, tClientPort<TInterface >>::type& client_port, TFunction function_pointer,
+                                        const rrlib::time::tDuration& timeout, tParameterTuple& parameters, uint8_t function_id, tCallId call_id, rrlib::util::tIntegerSequence<SEQUENCE...> sequence)
   {
     typename tCallStorage::tPointer call_storage = tCallStorage::GetUnused();
     tRPCResponse<TReturn>& response = call_storage->Emplace<tRPCResponse<TReturn>>(*call_storage, function_id);
     response.SetCallId(call_id);
     try
     {
-      response.SetReturnValue(client_port.CallSynchronous(timeout, function_pointer, std::get<SEQUENCE>(parameters)...));
+      response.SetReturnValue(client_port.template CallSynchronous<TFunction, typename std::decay<TArgs>::type ...>
+                              (timeout, function_pointer, std::move(std::get<SEQUENCE>(parameters))...));
     }
     catch (const tRPCException& e)
     {
@@ -224,20 +238,49 @@ private:
     }
   }
 
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tRPCPort& port)
+  template <bool NATIVE_FUTURE_CALL, typename TInterface, typename TFunction, int ... SEQUENCE>
+  static void ExecuteCallImplementation(typename std::enable_if<NATIVE_FUTURE_CALL, tClientPort<TInterface>>::type& client_port, TFunction function_pointer,
+                                        const rrlib::time::tDuration& timeout, tParameterTuple& parameters, uint8_t function_id, tCallId call_id, rrlib::util::tIntegerSequence<SEQUENCE...> sequence)
   {
-    TReturn result;
-    stream >> result;
+    typename tCallStorage::tPointer call_storage = tCallStorage::GetUnused();
+    tRPCResponse<TReturn>& response = call_storage->Emplace<tRPCResponse<TReturn>>(*call_storage, function_id);
+    response.SetCallId(call_id);
+    try
+    {
+      response.SetReturnValue(client_port.template NativeFutureCall<TFunction, typename std::decay<TArgs>::type ...>
+                              (function_pointer, std::move(std::get<SEQUENCE>(parameters))...));
+    }
+    catch (const tRPCException& e)
+    {
+      call_storage->SetException(e.GetType());
+    }
+    core::tAbstractPort* port = client_port.GetWrapped();
+    if (port && port->IsReady())
+    {
+      static_cast<tRPCPort*>(port)->SendCall(call_storage);
+    }
+    else
+    {
+      FINROC_LOG_PRINT(DEBUG_WARNING, "Could not return value, because port is no longer available");
+    }
+  }
+
+  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tRPCPort& port) // TODO: mark override in gcc 4.7
+  {
+    tReturnInternal result;
+    tReturnSerialization::Deserialize(stream, result, port, function_index);
     ReturnValue(std::move(result));
   }
 
   virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
   {
+    // Deserialized by network transport implementation
     stream << function_index;
+
+    // Deserialized by this class
+    stream << storage.call_id;
     stream << timeout;
     stream << parameters;
-
-    // TODO: destination port (in TCP). timeout: here. Local synchronizing info (possibly asynch return handler)
   }
 
 };
@@ -245,7 +288,7 @@ private:
 struct tNoRPCRequest
 {
   template <typename TInterface>
-  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tCallId call_id)
+  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id)
   {
     throw new std::runtime_error("Not supported for functions returning void");
   }

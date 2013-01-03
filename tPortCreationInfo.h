@@ -43,6 +43,7 @@
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
+#include "core/port/tPortWrapperBase.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -169,6 +170,15 @@ private:
   {
     // standard case
     Set(arg);
+  }
+
+  /*!
+   * This exists so that the copy construction works/compiles with the varargs constructor.
+   * At runtime, however, tPortWrapperBase::CopyConstruction should return true - and this is never called
+   */
+  void Set(const core::tPortWrapperBase& base)
+  {
+    throw std::logic_error("This should never be called");
   }
 };
 

@@ -47,6 +47,8 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/tResponseHandler.h"
+#include "plugins/rpc_ports/tRPCException.h"
 #include "plugins/rpc_ports/internal/tCallStorage.h"
 
 //----------------------------------------------------------------------
@@ -64,6 +66,12 @@ namespace internal
 {
 template <typename TReturn, typename ... TArgs>
 class tRPCRequest;
+
+template <typename TReturn>
+class tRPCResponse;
+
+/*! Base class for all futures - to be able to identify them */
+class tIsFuture : public boost::noncopyable {};
 }
 
 //----------------------------------------------------------------------
@@ -78,7 +86,7 @@ class tRPCRequest;
  * removed as it is not required in the context of RPC ports.
  */
 template <typename T>
-class tFuture : public boost::noncopyable
+class tFuture : public internal::tIsFuture
 {
 
 //----------------------------------------------------------------------
@@ -86,13 +94,16 @@ class tFuture : public boost::noncopyable
 //----------------------------------------------------------------------
 public:
 
-  tFuture() : storage(), result_buffer(NULL) {}
+  typedef T tValue;
+
+  tFuture() : storage(), result_buffer(NULL), callback_set(false) {}
 
   /*! Move constructor */
-  tFuture(tFuture && other) : storage(), result_buffer(NULL)
+  tFuture(tFuture && other) : storage(), result_buffer(NULL), callback_set(false)
   {
     std::swap(storage, other.storage);
     std::swap(result_buffer, other.result_buffer);
+    std::swap(callback_set, other.callback_set);
   }
 
   /*! Move assignment */
@@ -100,7 +111,18 @@ public:
   {
     std::swap(storage, other.storage);
     std::swap(result_buffer, other.result_buffer);
+    std::swap(callback_set, other.callback_set);
     return *this;
+  }
+
+  ~tFuture()
+  {
+    if (callback_set)
+    {
+      assert(storage);
+      rrlib::thread::tLock lock(storage->mutex);
+      storage->response_handler = NULL;
+    }
   }
 
   /*!
@@ -167,6 +189,23 @@ public:
     return storage->future_status.load() != (int)tFutureStatus::PENDING;
   }
 
+  /*!
+   * Sets callback which is called when future receives value
+   * If future already has value, callback is never called
+   * Callback is removed when this future is destructed
+   *
+   * \param callback Callback
+   */
+  void SetCallback(tResponseHandler<T>& callback)
+  {
+    if ((!storage) || callback_set)
+    {
+      throw std::runtime_error("Cannot set callback");
+    }
+    storage->response_handler = &callback;
+    callback_set = true;
+  }
+
   /*! see std::future::valid() */
   bool Valid() const
   {
@@ -181,16 +220,27 @@ private:
   template <typename TReturn, typename ... TArgs>
   friend class internal::tRPCRequest;
 
+  template <typename TReturn>
+  friend class internal::tRPCResponse;
+
+  template <typename TReturn>
+  friend class tPromise;
+
+
   /*! Pointer to shared storage */
   typename internal::tCallStorage::tFuturePointer storage;
 
   /*! Buffer with result */
   T* result_buffer;
 
+  /*! True, if a callback for this future was set */
+  bool callback_set;
+
 
   tFuture(typename internal::tCallStorage::tFuturePointer && storage, T& result_buffer) :
     storage(std::move(storage)),
-    result_buffer(&result_buffer)
+    result_buffer(&result_buffer),
+    callback_set(false)
   {}
 };
 

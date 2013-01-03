@@ -90,9 +90,10 @@ class tRPCMessage : public tAbstractCall
 //----------------------------------------------------------------------
 public:
 
-  tRPCMessage(uint8_t function_index, TArgs && ... args) :
+  template <typename ... TCallArgs>
+  tRPCMessage(uint8_t function_index, TCallArgs && ... args) :
     function_index(function_index),
-    parameters(args...)
+    parameters(std::forward<TCallArgs>(args)...)
   {}
 
   template <typename TReturn, typename TInterface>
@@ -126,17 +127,18 @@ private:
 
 
   template <typename TInterface, typename TFunction, int ... SEQUENCE>
-  static void ExecuteCallImplementation(tClientPort<TInterface>& client_port, TFunction function_pointer, tParameterTuple parameters, rrlib::util::tIntegerSequence<SEQUENCE...> sequence)
+  static void ExecuteCallImplementation(tClientPort<TInterface>& client_port, TFunction function_pointer, tParameterTuple& parameters, rrlib::util::tIntegerSequence<SEQUENCE...> sequence)
   {
-    client_port.Call(function_pointer, std::get<SEQUENCE>(parameters)...);
+    client_port.Call(function_pointer, std::move(std::get<SEQUENCE>(parameters))...);
   }
 
   virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
   {
+    // Deserialized by network transport implementation
     stream << function_index;
-    stream << parameters;
 
-    // TODO: destination port (in TCP). timeout: here. Local synchronizing info (possibly asynch return handler)
+    // Deserialized by this class
+    stream << parameters;
   }
 
 };

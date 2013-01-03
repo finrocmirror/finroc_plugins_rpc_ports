@@ -19,23 +19,22 @@
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/tServerPort.h
+/*!\file    plugins/rpc_ports/tProxyPort.h
  *
  * \author  Max Reichardt
  *
- * \date    2012-12-01
+ * \date    2012-12-31
  *
- * \brief   Contains tServerPort
+ * \brief   Contains tProxyPort
  *
- * \b tServerPort
+ * \b tProxyPort
  *
- * Server RPC Port.
- * Accepts and handles function calls from any connected clients.
+ * Proxy (or "routing") RPC port.
  *
  */
 //----------------------------------------------------------------------
-#ifndef __plugins__rpc_ports__tServerPort_h__
-#define __plugins__rpc_ports__tServerPort_h__
+#ifndef __plugins__rpc_ports__tProxyPort_h__
+#define __plugins__rpc_ports__tProxyPort_h__
 
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
@@ -45,7 +44,6 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
-#include "plugins/rpc_ports/tClientPort.h"
 #include "plugins/rpc_ports/tPortCreationInfo.h"
 #include "plugins/rpc_ports/tRPCInterfaceType.h"
 #include "plugins/rpc_ports/internal/tRPCPort.h"
@@ -65,17 +63,13 @@ namespace rpc_ports
 //----------------------------------------------------------------------
 // Class declaration
 //----------------------------------------------------------------------
-//! RPC Port
+//! Proxy RPC port
 /*!
- * Server RPC Port.
- * Accepts and handles function calls from any connected clients.
- *
- * \tparam T RPC Interface type (any class with some functions derived from tRPCInterface)
+ * Proxy (or "routing") RPC port (similar to tProxyPort in data_ports plugin)
  */
-template <typename T>
-class tServerPort : public core::tPortWrapperBase
+template <typename T, bool SERVER_PORT>
+class tProxyPort : public core::tPortWrapperBase
 {
-  static_assert(std::is_base_of<tRPCInterface, T>::value, "T must be subclass of tRPCInterface");
 
 //----------------------------------------------------------------------
 // Public methods and typedefs
@@ -83,7 +77,7 @@ class tServerPort : public core::tPortWrapperBase
 public:
 
   /*! Creates no wrapped port */
-  tServerPort() {}
+  tProxyPort() {}
 
   /*!
    * Constructor takes variadic argument list... just any properties you want to assign to port.
@@ -92,23 +86,20 @@ public:
    * A framework element pointer is interpreted as parent.
    * tFrameworkElementFlag arguments are interpreted as flags.
    * tAbstractPortCreationInfo argument is copied. This is only allowed as first argument.
-   *
-   * \param interface Object that handles calls on server side
    */
   template <typename TArg1, typename ... TRest>
-  tServerPort(T& interface, const TArg1& arg1, const TRest& ... args)
+  tProxyPort(const TArg1& arg1, const TRest& ... args)
   {
-    if (!this->CopyConstruction<tServerPort>(&arg1))
+    if (!this->CopyConstruction<tProxyPort>(&arg1))
     {
-      tPortCreationInfo<T> creation_info(arg1, args..., interface);
-      if (!creation_info.call_handler)
-      {
-        FINROC_LOG_PRINT(ERROR, "Call handler has to be specified for server port");
-        throw std::runtime_error("Call handler has to be specified for server port");
-      }
+      tPortCreationInfo<T> creation_info(arg1, args...);
       creation_info.data_type = tRPCInterfaceType<T>();
-      creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
-      this->SetWrapped(new internal::tRPCPort(creation_info, creation_info.call_handler));
+      creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA | core::tFrameworkElement::tFlag::EMITS_DATA;
+      if (!SERVER_PORT)
+      {
+        creation_info.flags |= core::tFrameworkElement::tFlag::OUTPUT_PORT;
+      }
+      this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
     }
   }
 
@@ -118,17 +109,17 @@ public:
    *
    * \param wrap Type-less port to wrap as tPort<T>
    */
-  static tServerPort Wrap(core::tAbstractPort& wrap)
+  static tProxyPort Wrap(core::tAbstractPort& wrap)
   {
     if (wrap.GetDataType().GetRttiName() != typeid(T).name())
     {
       throw std::runtime_error("Port to wrap has invalid type");
     }
-    if ((!wrap.GetFlag(core::tFrameworkElement::tFlag::ACCEPTS_DATA)) || (wrap.GetFlag(core::tFrameworkElement::tFlag::EMITS_DATA)))
+    if ((!wrap.GetFlag(core::tFrameworkElement::tFlag::ACCEPTS_DATA)) || (!wrap.GetFlag(core::tFrameworkElement::tFlag::EMITS_DATA)))
     {
       throw std::runtime_error("Port to wrap has invalid flags");
     }
-    tServerPort port;
+    tProxyPort port;
     port.SetWrapped(&wrap);
     return port;
   }

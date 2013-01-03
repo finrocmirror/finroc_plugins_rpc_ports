@@ -89,10 +89,10 @@ typedef uint64_t tCallId;
 typedef void (*tDeserializeMessage)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t);
 
 /*! Function that deserializes and executes call from stream */
-typedef void (*tDeserializeRequest)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t, tCallId);
+typedef void (*tDeserializeRequest)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t);
 
 /*! Function that deserializes and handles response from stream */
-typedef void (*tDeserializeResponse)(rrlib::serialization::tInputStream&, tRPCPort&, tCallStorage*);
+typedef void (*tDeserializeResponse)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t, tCallStorage*);
 
 } // namespace internal
 

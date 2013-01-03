@@ -80,12 +80,15 @@ tRPCPort::~tRPCPort()
 void tRPCPort::ConnectionAdded(tAbstractPort& partner, bool partner_is_destination)
 {
   // Disconnect any server ports we might already be connected to.
-  for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
+  if (partner_is_destination)
   {
-    if (&(*it) != &partner)
+    for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
     {
-      FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->GetQualifiedName(), "' and adding the new one to '", partner.GetQualifiedName(), "'.");
-      it->DisconnectFrom(*this);
+      if (&(*it) != &partner)
+      {
+        FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->GetQualifiedName(), "' and adding the new one to '", partner.GetQualifiedName(), "'.");
+        it->DisconnectFrom(*this);
+      }
     }
   }
 }
@@ -96,7 +99,7 @@ tRPCPort* tRPCPort::GetServer(bool include_network_ports) const
   while (true)
   {
     const tRPCPort* last = current;
-    for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
+    for (auto it = last->OutgoingConnectionsBegin(); it != last->OutgoingConnectionsEnd(); ++it)
     {
       current = static_cast<tRPCPort*>(&(*it));
       break;

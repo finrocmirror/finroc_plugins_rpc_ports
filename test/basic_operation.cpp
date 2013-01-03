@@ -87,7 +87,7 @@ int main(int, char**)
   tTestInterface test_interface;
 
   tClientPort<tTestInterface> client_port("Client port");
-  tServerPort<tTestInterface> server_port("Server port", test_interface);
+  tServerPort<tTestInterface> server_port(test_interface, "Server port");
   client_port.GetParent()->InitAll();
   client_port.ConnectTo(server_port);
 

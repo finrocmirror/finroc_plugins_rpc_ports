@@ -70,20 +70,59 @@ namespace internal
 typename tCallStorage::tCallStorageBufferPool tCallStorage::call_storage_buffer_pool;
 
 tCallStorage::tCallStorage() :
-  empty(),
+  empty(true),
   mutex(),
   condition_variable(),
   waiting(false),
   future_status((int)tFutureStatus::PENDING),
-  call_complete_for_sending(true),
+  call_ready_for_sending(NULL),
   reference_counter(0),
   response_handler(NULL),
+  expects_response(false),
   storage_memory()
 {}
 
 tCallStorage::~tCallStorage()
 {
   Clear();
+}
+
+typename tCallStorage::tPointer tCallStorage::GetUnused()
+{
+  typename tCallStorageBufferPool::tPointer buffer = call_storage_buffer_pool.GetUnusedBuffer();
+  if (!buffer)
+  {
+    std::unique_ptr<tCallStorage> new_buffer(new tCallStorage());
+    buffer = call_storage_buffer_pool.AddBuffer(std::move(new_buffer));
+  }
+  buffer->reference_counter.store(1);
+  buffer->call_ready_for_sending = NULL;
+  buffer->expects_response = false;
+  return tPointer(buffer.release());
+}
+
+void tCallStorage::SetException(tFutureStatus new_status)
+{
+  tFutureStatus current = (tFutureStatus)future_status.load();
+  if (current != tFutureStatus::PENDING)
+  {
+    FINROC_LOG_PRINT(WARNING, "Exception cannot be set twice. Ignoring.");
+    return;
+  }
+
+  if (new_status == tFutureStatus::PENDING || new_status == tFutureStatus::READY)
+  {
+    throw std::runtime_error("Invalid value for exception");
+  }
+
+  rrlib::thread::tLock lock(mutex);
+  future_status.store((int)new_status);
+  condition_variable.notify_one();
+  if (response_handler)
+  {
+    lock.Unlock();
+    response_handler->HandleException(new_status);
+  }
 }
 
 //----------------------------------------------------------------------

@@ -49,6 +49,9 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/tResponseHandler.h"
+#include "plugins/rpc_ports/internal/tCallStorage.h"
+#include "plugins/rpc_ports/internal/tRPCPort.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -61,6 +64,15 @@ namespace rpc_ports
 //----------------------------------------------------------------------
 // Forward declarations / typedefs / enums
 //----------------------------------------------------------------------
+namespace internal
+{
+
+template <typename TReturn, bool PROMISE, bool SERIALIZABLE>
+struct tReturnValueSerialization;
+
+/*! Base class for all promises - to be able to identify them */
+class tIsPromise : public boost::noncopyable {};
+}
 
 //----------------------------------------------------------------------
 // Class declaration
@@ -84,7 +96,7 @@ namespace rpc_ports
  * Classes can be derived from this. They, however, need to be movable.
  */
 template <typename T>
-class tPromise : public boost::noncopyable
+class tPromise : public internal::tIsPromise
 {
 
 //----------------------------------------------------------------------
@@ -92,33 +104,166 @@ class tPromise : public boost::noncopyable
 //----------------------------------------------------------------------
 public:
 
-  tPromise() :
-    storage(), result_flag(NULL), result_buffer(NULL)
-  {
+  typedef T tValue;
 
+  tPromise() :
+    storage(internal::tCallStorage::GetUnused()),
+    result_buffer(&(storage->Emplace<tStorageContents>(*storage)).result_buffer)
+  {
+    storage->future_status.store(static_cast<int>(tFutureStatus::PENDING));
+  }
+
+  // Move constructor
+  tPromise(tPromise && other) :
+    storage(),
+    result_buffer(NULL)
+  {
+    std::swap(storage, other.storage);
+    std::swap(result_buffer, other.result_buffer);
+  }
+
+  // Move assignment
+  tPromise& operator=(tPromise && other)
+  {
+    std::swap(storage, other.storage);
+    std::swap(result_buffer, other.result_buffer);
+    return *this;
   }
 
   ~tPromise()
   {
-    if (!result_flag->load())
+    // 'storage' pointer deletion breaks promise as intended
+  }
+
+  /*!
+   * \return Future to wait for result
+   */
+  tFuture<T> GetFuture()
+  {
+    return tFuture<T>(storage->ObtainFuturePointer(), *result_buffer);
+  }
+
+  /*!
+   * Set promise to exception
+   * (see std::promise::set_exception)
+   */
+  void SetException(tFutureStatus exception_status)
+  {
+    storage->SetException(exception_status);
+  }
+
+  /*!
+   * Set promise's value
+   * (see std::promise::set_value)
+   */
+  void SetValue(T && value)
+  {
+    tFutureStatus current = (tFutureStatus)storage->future_status.load();
+    if (current != tFutureStatus::PENDING)
     {
-      SetException(tRPCException::tType::);
+      FINROC_LOG_PRINT(WARNING, "Call already has status ", make_builder::GetEnumString(current), ". Ignoring.");
+      return;
+    }
+
+    rrlib::thread::tLock lock(storage->mutex);
+    *result_buffer = std::move(value);
+    storage->future_status.store((int)tFutureStatus::READY);
+    storage->condition_variable.notify_one();
+    if (storage->response_handler)
+    {
+      lock.Unlock();
+      static_cast<tResponseHandler<T>*>(storage->response_handler)->HandleResponse(std::move(*result_buffer));
     }
   }
+  void SetValue(T& value)
+  {
+    SetValue(std::move(value));
+  }
+  void SetValue(const T& value)
+  {
+    tFutureStatus current = (tFutureStatus)storage->future_status.load();
+    if (current != tFutureStatus::PENDING)
+    {
+      FINROC_LOG_PRINT(WARNING, "Call already has status ", make_builder::GetEnumString(current), ". Ignoring.");
+      return;
+    }
+
+    rrlib::thread::tLock lock(storage->mutex);
+    *result_buffer = value;
+    storage->future_status.store((int)tFutureStatus::READY);
+    storage->condition_variable.notify_one();
+    if (storage->response_handler)
+    {
+      lock.Unlock();
+      static_cast<tResponseHandler<T>*>(storage->response_handler)->HandleResponse(std::move(*result_buffer));
+    }
+  }
+
 
 //----------------------------------------------------------------------
 // Private fields and methods
 //----------------------------------------------------------------------
 private:
 
+  template <typename TReturn, bool PROMISE, bool SERIALIZABLE>
+  friend struct internal::tReturnValueSerialization;
+
+  class tStorageContents : public internal::tAbstractCall
+  {
+  public:
+
+    /*! Storage this RPC request was allocated in */
+    internal::tCallStorage& storage;
+
+    /*! Buffer with result */
+    T result_buffer;
+
+    /*! Index of function in interface */
+    uint8_t function_index;
+
+    /*! Id of remote promise - if this is a remote promise */
+    internal::tCallId remote_promise_call_id;
+
+    tStorageContents(internal::tCallStorage& storage) :
+      storage(storage),
+      result_buffer(),
+      function_index(0),
+      remote_promise_call_id(0)
+    {}
+
+    virtual void Serialize(rrlib::serialization::tOutputStream& stream)
+    {
+      // Deserialized by network transport implementation
+      stream << function_index;
+      stream << remote_promise_call_id;
+
+      // Deserialized by this class
+      stream << true; // promise_response
+      tFutureStatus status = (tFutureStatus)storage.future_status.load();
+      assert(status == tFutureStatus::READY && "only ready responses should be serialized");
+      stream << status;
+      stream << result_buffer;
+    }
+  };
+
   /*! Pointer to shared storage */
   typename internal::tCallStorage::tPointer storage;
 
   /*! Buffer with result */
-  std::atomic<bool>* result_flag;
-
-  /*! Buffer with result */
   T* result_buffer;
+
+
+  /*!
+   * Mark/init this promise a remote promise
+   */
+  void SetRemotePromise(uint8_t function_index, internal::tCallId call_id, internal::tRPCPort& port)
+  {
+    tStorageContents* contents = static_cast<tStorageContents*>(storage->GetCall());
+    contents->function_index = function_index;
+    contents->remote_promise_call_id = call_id;
+    storage->call_ready_for_sending = &(storage->future_status);
+    port.SendCall(storage->ObtainFuturePointer());
+  }
 };
 
 //----------------------------------------------------------------------

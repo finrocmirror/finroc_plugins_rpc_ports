@@ -76,10 +76,32 @@ namespace internal
 class tRPCPort : public core::tAbstractPort
 {
 
+  /*! Deleter to unify two types of call storage pointer for sent calls */
+  struct tCallDeleter
+  {
+    void operator()(tCallStorage* p) const
+    {
+      if (IsFuturePointer(*p))
+      {
+        tCallStorage::tFuturePointer::deleter_type deleter;
+        deleter(p);
+      }
+      else
+      {
+        tCallStorage::tPointer::deleter_type deleter;
+        deleter(p);
+      }
+    }
+  };
+
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
 public:
+
+  /*! Stores calls internally */
+  typedef std::unique_ptr<tCallStorage, tCallDeleter> tCallPointer;
+
 
   tRPCPort(core::tAbstractPortCreationInfo& creation_info, tRPCInterface* call_handler);
 
@@ -129,9 +151,15 @@ public:
    *
    * \param call_to_send Call that is sent
    */
-  virtual void SendCall(typename tCallStorage::tPointer& call_to_send)
+  void SendCall(typename tCallStorage::tPointer& call_to_send)
   {
-    throw std::runtime_error("Not a network port");
+    assert(IsFuturePointer(*call_to_send) == false);
+    SendCall(tCallPointer(call_to_send.release()));
+  }
+  void SendCall(typename tCallStorage::tFuturePointer && call_to_send)
+  {
+    assert(IsFuturePointer(*call_to_send) == true);
+    SendCall(tCallPointer(call_to_send.release()));
   }
 
 //----------------------------------------------------------------------
@@ -143,12 +171,22 @@ private:
   tRPCInterface* const call_handler;
 
 
-
-
   virtual void ConnectionAdded(tAbstractPort& partner, bool partner_is_destination); // TODO mark override with gcc 4.7
 
   virtual tAbstractPort::tConnectDirection InferConnectDirection(const tAbstractPort& other) const; // TODO mark override with gcc 4.7
 
+  static bool IsFuturePointer(tCallStorage& call_storage)
+  {
+    return call_storage.call_ready_for_sending == &(call_storage.future_status); // slightly ugly... but memory efficient (and we have the assertions)
+  }
+
+  /*!
+   * To be overridden by network port subclass
+   */
+  virtual void SendCall(tCallPointer && call_to_send)
+  {
+    throw std::runtime_error("Not a network port");
+  }
 };
 
 //----------------------------------------------------------------------

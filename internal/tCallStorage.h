@@ -92,7 +92,8 @@ class tCallStorage :
 
   /*! Buffer pool for call storage objects */
   typedef rrlib::buffer_pools::tBufferPool < tCallStorage, rrlib::concurrent_containers::tConcurrency::FULL,
-          rrlib::buffer_pools::management::QueueBased, rrlib::buffer_pools::deleting::CollectGarbage > tCallStorageBufferPool;
+          rrlib::buffer_pools::management::QueueBased, rrlib::buffer_pools::deleting::CollectGarbage,
+          rrlib::buffer_pools::recycling::UseOwnerStorageInBuffer > tCallStorageBufferPool;
 
   /*! Deleter that returns buffer */
   typedef typename tCallStorageBufferPool::tPointer::deleter_type tBufferReturner;
@@ -165,6 +166,14 @@ public:
   }
 
   /*!
+   * \return Does this contain a call that expects a response?
+   */
+  bool ExceptsResponse() const
+  {
+    return expects_response;
+  }
+
+  /*!
    * \return Pointer to call stored in this object - NULL if no call is currently stored
    */
   tAbstractCall* GetCall()
@@ -172,14 +181,23 @@ public:
     return empty ? NULL : reinterpret_cast<tAbstractCall*>(&storage_memory);
   }
 
+  tCallId GetCallId() const
+  {
+    return call_id;
+  }
+
   /*!
    * \return Unused call storage buffer
    */
-  static tPointer GetUnused()
+  static tPointer GetUnused();
+
+  /*!
+   * \return Is call ready for sending?
+   * (it is possible to enqueue calls that are not ready for sending yet in network send queues)
+   */
+  bool ReadyForSending() const
   {
-    typename tCallStorageBufferPool::tPointer buffer = call_storage_buffer_pool.GetUnusedBuffer();
-    buffer->reference_counter.store(1);
-    return tPointer(buffer.release());
+    return (!call_ready_for_sending) || (call_ready_for_sending->load() != (int)tFutureStatus::PENDING);
   }
 
   template <bool FUTURE_POINTER>
@@ -209,28 +227,7 @@ public:
    *
    * \param new_status Type of exception
    */
-  void SetException(tFutureStatus new_status)
-  {
-    tFutureStatus current = (tFutureStatus)future_status.load();
-    if (current != tFutureStatus::PENDING)
-    {
-      FINROC_LOG_PRINT(WARNING, "Exception cannot be set twice. Ignoring.");
-      return;
-    }
-
-    if (new_status == tFutureStatus::PENDING || new_status == tFutureStatus::READY)
-    {
-      throw std::runtime_error("Invalid value for exception");
-    }
-
-    rrlib::thread::tLock lock(mutex);
-    future_status.store((int)new_status);
-    condition_variable.notify_one();
-    if (response_handler)
-    {
-      response_handler->HandleException(new_status);
-    }
-  }
+  void SetException(tFutureStatus new_status);
 
 //----------------------------------------------------------------------
 // Private fields and methods
@@ -248,6 +245,8 @@ private:
 
   template <typename TReturn>
   friend class tRPCResponse;
+
+  friend class tRPCPort;
 
   /*! Global buffer pool with storage objects (TODO: possibly optimize if this becomes a bottle-neck) */
   static tCallStorageBufferPool call_storage_buffer_pool;
@@ -269,16 +268,23 @@ private:
   std::atomic<int> future_status;
 
   /*!
-   * Signals that call is complete now and can be sent
+   * If not NULL, signals that call is complete now and can be sent
    * (it is possible to enqueue incomplete calls in network send queue)
+   * (points to tFutureStatus atomic)
    */
-  std::atomic<bool> call_complete_for_sending;
+  std::atomic<int>* call_ready_for_sending;
 
   /*! Reference counter on this storage */
   std::atomic<int> reference_counter;
 
   /*! Pointer to (optional) response handler */
   tAbstractResponseHandler* response_handler;
+
+  /*! Does this contain a call that expects a response? */
+  bool expects_response;
+
+  /*! Identification of call in this process */
+  tCallId call_id;
 
   /*! Call class storage memory */
   std::array<unsigned char, 256> storage_memory;

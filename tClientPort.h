@@ -84,7 +84,9 @@ class tClientPort : public core::tPortWrapperBase
   template <typename U>
   static U& MakeU();
 
-  /*! Helper struct to extract return type from function type */
+  /*!
+   * Helper struct to extract types from function type
+   */
   template <typename TFunction>
   struct tReturnType
   {
@@ -94,10 +96,31 @@ class tClientPort : public core::tPortWrapperBase
     typedef decltype(ExtractReturnType(MakeU<TFunction>())) type;
   };
 
+  template <typename TFunction>
+  struct tMessageType
+  {
+    template <typename RETURN, typename ... TArgs>
+    static internal::tRPCMessage<TArgs...> ExtractMessageType(RETURN(T::*function_pointer)(TArgs...));
+
+    typedef decltype(ExtractMessageType(MakeU<TFunction>())) type;
+  };
+
+  template <typename TFunction>
+  struct tRequestType
+  {
+    template <typename RETURN, typename ... TArgs>
+    static internal::tRPCRequest<RETURN, TArgs...> ExtractRequestType(RETURN(T::*function_pointer)(TArgs...));
+
+    typedef decltype(ExtractRequestType(MakeU<TFunction>())) type;
+  };
+
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
 public:
+
+  /*! Creates no wrapped port */
+  tClientPort() {}
 
   /*!
    * Constructor takes variadic argument list... just any properties you want to assign to port.
@@ -107,13 +130,16 @@ public:
    * tFrameworkElementFlag arguments are interpreted as flags.
    * tAbstractPortCreationInfo argument is copied. This is only allowed as first argument.
    */
-  template <typename ... ARGS>
-  tClientPort(ARGS && ... args)
+  template <typename TArg1, typename ... TRest>
+  tClientPort(const TArg1& arg1, const TRest& ... args)
   {
-    tPortCreationInfo<T> creation_info(args...);
-    creation_info.data_type = tRPCInterfaceType<T>();
-    creation_info.flags |= core::tFrameworkElement::tFlag::EMITS_DATA | core::tFrameworkElement::tFlag::OUTPUT_PORT;
-    this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
+    if (!this->CopyConstruction<tClientPort>(&arg1))
+    {
+      tPortCreationInfo<T> creation_info(arg1, args...);
+      creation_info.data_type = tRPCInterfaceType<T>();
+      creation_info.flags |= core::tFrameworkElement::tFlag::EMITS_DATA | core::tFrameworkElement::tFlag::OUTPUT_PORT;
+      this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
+    }
   }
 
 
@@ -135,7 +161,7 @@ public:
       {
         try
         {
-          (static_cast<T*>(server_interface)->*function)(args...);
+          (static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...);
         }
         catch (const tRPCException& e)
         {
@@ -144,8 +170,9 @@ public:
       }
       else
       {
+        typedef typename tMessageType<TFunction>::type tMessage;
         typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-        call_storage->Emplace<internal::tRPCMessage<TArgs...>>(tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
+        call_storage->Emplace<tMessage>(tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
         server_port->SendCall(call_storage);
       }
     }
@@ -165,6 +192,7 @@ public:
   {
     typedef typename tReturnType<TFunction>::type tReturn;
     static_assert(!std::is_same<tReturn, void>::value, "Call plain Call() for functions without return value");
+    static_assert(!std::is_base_of<internal::tIsFuture, tReturn>::value, "Call NativeFutureCall() for functions returning a future");
 
     internal::tRPCPort* server_port = GetWrapped()->GetServer(true);
     if (!server_port)
@@ -177,7 +205,7 @@ public:
     {
       try
       {
-        response_handler.HandleResponse((static_cast<T*>(server_interface)->*function)(args...));
+        response_handler.HandleResponse((static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...));
       }
       catch (const tRPCException& e)
       {
@@ -187,9 +215,9 @@ public:
     }
 
     // prepare storage object
+    typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    internal::tRPCRequest<tReturn, TArgs...>& request =
-      call_storage->Emplace<internal::tRPCRequest<tReturn, TArgs...>>(tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
 
     request.SetResponseHandler(response_handler);
     server_port->SendCall(call_storage);
@@ -198,8 +226,8 @@ public:
 
   /*!
    * Calls specified function
-   * This blocks until return value is available or timeout expires
-   * Throws a tRPCException if port is not connected, the timeout expires or parameters are invalid
+   * This blocks until return value is available or timeout expires.
+   * Throws a tRPCException if port is not connected, the timeout expires or parameters are invalid.
    *
    * \param timeout Timeout for function call
    * \param function Function to call
@@ -211,6 +239,7 @@ public:
   {
     typedef typename tReturnType<TFunction>::type tReturn;
     static_assert(!std::is_same<tReturn, void>::value, "Call plain Call() for functions without return value");
+    static_assert(!std::is_base_of<internal::tIsFuture, tReturn>::value, "Call NativeFutureCall() for functions returning a future");
 
     internal::tRPCPort* server_port = GetWrapped()->GetServer(true);
     if (!server_port)
@@ -220,20 +249,17 @@ public:
     tRPCInterface* server_interface = server_port->GetCallHandler();
     if (server_interface)
     {
-      return (static_cast<T*>(server_interface)->*function)(args...);
+      return (static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...);
     }
 
     // prepare storage object
+    typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    internal::tRPCRequest<tReturn, TArgs...>& request =
-      call_storage->Emplace<internal::tRPCRequest<tReturn, TArgs...>>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), timeout, std::forward<TArgs>(args)...);
-
-    // TODO: add handler that will notify condition variable on return etc.
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), timeout, std::forward<TArgs>(args)...);
 
     // send call and wait for call returning
     tFuture<tReturn> future = request.GetFuture();
     server_port->SendCall(call_storage);
-    call_storage.reset();
     return future.Get(timeout);
   }
 
@@ -244,40 +270,40 @@ public:
    *
    * \param function Function to call
    * \param args Arguments for function call
+   * \return Future to obtain return value
    */
   template <typename TFunction, typename ... TArgs>
   tFuture<typename tReturnType<TFunction>::type> FutureCall(TFunction function, TArgs && ... args)
   {
     typedef typename tReturnType<TFunction>::type tReturn;
     static_assert(!std::is_same<tReturn, void>::value, "Call plain Call() for functions without return value");
-
-    // prepare storage object
-    typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
+    static_assert(!std::is_base_of<internal::tIsFuture, tReturn>::value, "Call NativeFutureCall() for functions returning a future");
 
     internal::tRPCPort* server_port = GetWrapped()->GetServer(true);
     if (!server_port)
     {
-      internal::tRPCResponse<tReturn>& response = call_storage->Emplace<internal::tRPCResponse<tReturn>>();
-      call_storage->SetException(tFutureStatus::NO_CONNECTION);
+      tPromise<tReturn> response;
+      response->SetException(tFutureStatus::NO_CONNECTION);
       return response.GetFuture();
     }
     tRPCInterface* server_interface = server_port->GetCallHandler();
     if (server_interface)
     {
-      internal::tRPCResponse<tReturn>& response = call_storage->Emplace<internal::tRPCResponse<tReturn>>(*call_storage);
+      tPromise<tReturn> response;
       try
       {
-        response->SetReturnValue((static_cast<T*>(server_interface)->*function)(args...));
+        response->SetReturnValue((static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...));
       }
       catch (const tRPCException& e)
       {
-        call_storage->SetException(e.GetType());
+        response->SetException(e.GetType());
       }
       return response.GetFuture();
     }
 
-    internal::tRPCRequest<tReturn, TArgs...>& request =
-      call_storage->Emplace<internal::tRPCRequest<tReturn, TArgs...>>(tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
+    typedef typename tRequestType<TFunction>::type tRequest;
+    typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
     tFuture<tReturn> future = request.GetFuture();
     server_port->SendCall(call_storage);
     return future;
@@ -292,6 +318,45 @@ public:
   }
 
   /*!
+   * Calls a function that returns a future.
+   *
+   * If port is not connected etc., stores exception in returned future.
+   *
+   * \param function Function to call
+   * \param args Arguments for function call
+   * \return Future returned by function
+   */
+  template <typename TFunction, typename ... TArgs>
+  typename tReturnType<TFunction>::type NativeFutureCall(TFunction function, TArgs && ... args)
+  {
+    typedef typename tReturnType<TFunction>::type tReturn;
+    static_assert(std::is_base_of<internal::tIsFuture, tReturn>::value, "Only suitable for functions returning a tFuture");
+
+    internal::tRPCPort* server_port = GetWrapped()->GetServer(true);
+    if (!server_port)
+    {
+      tPromise<typename tReturn::tValue> response;
+      response.SetException(tFutureStatus::NO_CONNECTION);
+      return response.GetFuture();
+    }
+    tRPCInterface* server_interface = server_port->GetCallHandler();
+    if (server_interface)
+    {
+      return (static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...);
+    }
+
+    // prepare storage object
+    typedef typename tRequestType<TFunction>::type tRequest;
+    typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
+
+    // send call and wait for call returning
+    tReturn future = request.GetFuture();
+    server_port->SendCall(call_storage);
+    return future;
+  }
+
+  /*!
    * Wraps raw port
    * Throws std::runtime_error if port has invalid type
    *
@@ -302,6 +367,10 @@ public:
     if (wrap.GetDataType().GetRttiName() != typeid(T).name())
     {
       throw std::runtime_error("tClientPort<" + rrlib::rtti::Demangle(typeid(T).name()) + "> cannot wrap port with buffer type '" + wrap.GetDataType().GetName() + "'.");
+    }
+    if ((wrap.GetFlag(core::tFrameworkElement::tFlag::ACCEPTS_DATA)) || (!wrap.GetFlag(core::tFrameworkElement::tFlag::EMITS_DATA)))
+    {
+      throw std::runtime_error("Port to wrap has invalid flags");
     }
     tClientPort port;
     port.SetWrapped(&wrap);
