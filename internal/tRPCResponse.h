@@ -87,20 +87,23 @@ class tRPCResponse : public tAbstractCall //, public tResponseHandler<TReturn>
 //----------------------------------------------------------------------
 public:
 
-  tRPCResponse(tCallStorage& storage, uint8_t function_index) :
+  tRPCResponse(tCallStorage& storage, const rrlib::rtti::tType& rpc_interface_type, uint8_t function_index) :
+    rpc_interface_type(rpc_interface_type),
     function_index(function_index),
     result_buffer(),
     storage(storage),
     future_obtained(false),
     call_id(std::numeric_limits<tCallId>::max())
   {
-    storage.expects_response = cPROMISE_RESULT;
+    storage.response_timeout = cPROMISE_RESULT ? std::chrono::hours(24) : std::chrono::seconds(0); // TODO: put something sensible here
+    storage.call_type = tCallType::RPC_RESPONSE;
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, "Creating Response ", &storage, " ", &storage.call_type);
   }
 
 
   // TODO: Ensure that tCallStorage* request is not recycled while we're calling this. tFuturePointer or lock?
-  template <typename TInterface>
-  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tCallStorage* request)
+  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, const rrlib::rtti::tType& rpc_interface_type,
+      uint8_t function_id, tResponseSender& response_sender, tCallStorage* request)
   {
     try
     {
@@ -108,11 +111,12 @@ public:
       stream >> promise_response;
       tFutureStatus status;
       stream >> status;
+      FINROC_LOG_PRINT_STATIC(DEBUG_VERBOSE_1, promise_response, " ", make_builder::GetEnumString(status));
       if (status == tFutureStatus::READY)
       {
         if (request && request->GetCall())
         {
-          request->GetCall()->ReturnValue(stream, port);
+          request->GetCall()->ReturnValue(stream, response_sender);
         }
         else
         {
@@ -120,7 +124,7 @@ public:
           {
             // make sure e.g. promises are broken
             TReturn returned;
-            tReturnSerialization::Deserialize(stream, returned, port, function_id);
+            tReturnSerialization::Deserialize(stream, returned, response_sender, function_id, rpc_interface_type);
           }
           else
           {
@@ -179,7 +183,7 @@ public:
 //
 //    rrlib::thread::tLock lock(storage.mutex);
     result_buffer = std::move(return_value);
-//    storage.future_status.store((int)tFutureStatus::READY);
+    storage.future_status.store((int)tFutureStatus::READY);
 //    storage.condition_variable.notify_one();
 //    if (storage.response_handler)
 //    {
@@ -195,6 +199,9 @@ private:
 
   template <typename T>
   friend class tRPCResponse;
+
+  /*! RPC Interface Type */
+  rrlib::rtti::tType rpc_interface_type;
 
   /*! Index of function in interface */
   uint8_t function_index;
@@ -212,7 +219,7 @@ private:
   tCallId call_id;
 
 
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tRPCPort& port) // TODO: mark override in gcc 4.7
+  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender) // TODO: mark override in gcc 4.7
   {
     ReturnValueImplementation(stream);
   }
@@ -234,7 +241,7 @@ private:
   virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
   {
     // Deserialized by network transport implementation
-    stream << function_index;
+    stream << rpc_interface_type << function_index;
     stream << call_id;
 
     // Deserialized by this class
@@ -259,8 +266,8 @@ class tRPCResponse<tFuture<TReturn>> : public tRPCResponse<TReturn>
 //----------------------------------------------------------------------
 public:
 
-  tRPCResponse(tCallStorage& storage, uint8_t function_index) :
-    tBase(storage, function_index),
+  tRPCResponse(tCallStorage& storage, const rrlib::rtti::tType& rpc_interface_type, uint8_t function_index) :
+    tBase(storage, rpc_interface_type, function_index),
     response_future()
   {
   }
@@ -276,6 +283,7 @@ public:
   {
     this->storage.call_ready_for_sending = &return_value.storage->future_status;
     response_future = std::move(return_value);
+    this->storage.future_status.store((int)tFutureStatus::READY);
   }
 
 //----------------------------------------------------------------------
@@ -290,16 +298,18 @@ private:
   virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
   {
     // Deserialized by network transport implementation
-    stream << this->function_index;
+    stream << this->rpc_interface_type << this->function_index;
     stream << this->call_id;
 
     // Deserialized by this class
     stream << false; // promise_response
     tFutureStatus status = (tFutureStatus)this->storage.future_status.load();
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, make_builder::GetEnumString(status));
     if (status == tFutureStatus::READY)
     {
       status = (tFutureStatus)this->storage.call_ready_for_sending->load();
     }
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, make_builder::GetEnumString(status));
     stream << status;
     if (status == tFutureStatus::READY)
     {
@@ -312,8 +322,8 @@ private:
 
 struct tNoRPCResponse
 {
-  template <typename TInterface>
-  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tCallStorage* request)
+  static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, const rrlib::rtti::tType&,
+      uint8_t function_id, tResponseSender& response_sender, tCallStorage* request)
   {
     throw new std::runtime_error("Not supported for functions returning void");
   }

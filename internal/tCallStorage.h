@@ -41,7 +41,7 @@
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
 #include "rrlib/buffer_pools/tBufferPool.h"
-#include "core/log_messages.h"
+#include "core/tFrameworkElement.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -107,6 +107,8 @@ class tCallStorage :
     }
   };
 
+  typedef typename core::tFrameworkElement::tHandle tHandle;
+
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
@@ -168,9 +170,9 @@ public:
   /*!
    * \return Does this contain a call that expects a response?
    */
-  bool ExceptsResponse() const
+  bool ExpectsResponse() const
   {
-    return expects_response;
+    return response_timeout.count() != 0;
   }
 
   /*!
@@ -181,9 +183,36 @@ public:
     return empty ? NULL : reinterpret_cast<tAbstractCall*>(&storage_memory);
   }
 
+  /*!
+   * \return Identification of call in this process
+   */
   tCallId GetCallId() const
   {
     return call_id;
+  }
+
+  /*!
+   * \return Type of call
+   */
+  tCallType GetCallType() const
+  {
+    return call_type;
+  }
+
+  /*!
+   * \return Handle of local port that call was sent from.
+   */
+  tHandle GetLocalPortHandle() const
+  {
+    return local_port_handle;
+  }
+
+  /*!
+   * \return Handle of remote port that call is meant for: Custom variable for network transport implementation
+   */
+  tHandle GetRemotePortHandle() const
+  {
+    return remote_port_handle;
   }
 
   /*!
@@ -222,12 +251,36 @@ public:
   }
 
   /*!
+   * \return If call expects a response, contains timeout for this response
+   */
+  rrlib::time::tDuration ResponseTimeout() const
+  {
+    return response_timeout;
+  }
+
+  /*!
+   * \param call_id Call ID for call
+   */
+  void SetCallId(tCallId call_id)
+  {
+    this->call_id = call_id;
+  }
+
+  /*!
    * Indicates and notifies any futures/response handlers that RPC call
    * caused an exception
    *
    * \param new_status Type of exception
    */
   void SetException(tFutureStatus new_status);
+
+  /*!
+   * \param remote_port_handle Handle of remote port that call is meant for: Custom variable for network transport implementation
+   */
+  void SetRemotePortHandle(tHandle remote_port_handle)
+  {
+    this->remote_port_handle = remote_port_handle;
+  }
 
 //----------------------------------------------------------------------
 // Private fields and methods
@@ -245,6 +298,9 @@ private:
 
   template <typename TReturn>
   friend class tRPCResponse;
+
+  template <typename ... TArgs>
+  friend class tRPCMessage;
 
   friend class tRPCPort;
 
@@ -280,11 +336,23 @@ private:
   /*! Pointer to (optional) response handler */
   tAbstractResponseHandler* response_handler;
 
-  /*! Does this contain a call that expects a response? */
-  bool expects_response;
+  /*!
+   * Does this contain a call that expects a response?
+   * If yes, contains a timeout for this response - otherwise cNO_TIME
+   */
+  rrlib::time::tDuration response_timeout;
 
   /*! Identification of call in this process */
   tCallId call_id;
+
+  /*! Type of call */
+  tCallType call_type;
+
+  /*! Handle of local port that call was sent from. Set automatically by classes in RPC plugin. */
+  tHandle local_port_handle;
+
+  /*! Handle of remote port that call is meant for: Custom variable for network transport implementation */
+  tHandle remote_port_handle;
 
   /*! Call class storage memory */
   std::array<unsigned char, 256> storage_memory;
@@ -299,7 +367,6 @@ private:
     __attribute__((unused))
     int old = reference_counter.fetch_add(1);
     assert(old >= 1 && "Obtained pointer to object without reference.");
-    future_status.store((int)tFutureStatus::PENDING);
     return tFuturePointer(this);
   }
 };

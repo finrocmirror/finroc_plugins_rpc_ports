@@ -103,7 +103,7 @@ public:
   typedef std::unique_ptr<tCallStorage, tCallDeleter> tCallPointer;
 
 
-  tRPCPort(core::tAbstractPortCreationInfo& creation_info, tRPCInterface* call_handler);
+  tRPCPort(core::tAbstractPortCreationInfo creation_info, tRPCInterface* call_handler);
 
   ~tRPCPort();
 
@@ -166,6 +166,8 @@ public:
 // Private fields and methods
 //----------------------------------------------------------------------
 private:
+
+  friend class tResponseSender;
 
   /*! Pointer to object that handles calls on server side */
   tRPCInterface* const call_handler;

@@ -70,12 +70,12 @@ public:
 
   virtual void Test()
   {
-    RRLIB_LOG_PRINT(USER, "Test() Called");
+    FINROC_LOG_PRINT(USER, "Test() Called");
   }
 
   void StringTest(const std::string& string)
   {
-    RRLIB_LOG_PRINT(USER, "StringTest() called with '", string, "'");
+    FINROC_LOG_PRINT(USER, "StringTest() called with '", string, "'");
   }
 };
 
@@ -92,7 +92,7 @@ int main(int, char**)
   client_port.ConnectTo(server_port);
 
   int m = client_port.CallSynchronous(std::chrono::seconds(2), &tTestInterface::Function, 4);
-  RRLIB_LOG_PRINT(USER, "Call returned ", m);
+  FINROC_LOG_PRINT(USER, "Call returned ", m);
   client_port.Call(&tTestInterface::Test);
   client_port.Call(&tTestInterface::StringTest, "a string");
   return 0;

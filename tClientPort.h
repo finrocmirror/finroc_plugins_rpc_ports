@@ -172,7 +172,7 @@ public:
       {
         typedef typename tMessageType<TFunction>::type tMessage;
         typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-        call_storage->Emplace<tMessage>(tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
+        call_storage->Emplace<tMessage>(*call_storage, server_port->GetDataType(), tRPCInterfaceType<T>::GetFunctionID(function), std::forward<TArgs>(args)...);
         server_port->SendCall(call_storage);
       }
     }
@@ -217,7 +217,7 @@ public:
     // prepare storage object
     typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, *server_port, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
 
     request.SetResponseHandler(response_handler);
     server_port->SendCall(call_storage);
@@ -255,7 +255,7 @@ public:
     // prepare storage object
     typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), timeout, std::forward<TArgs>(args)...);
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, *server_port, tRPCInterfaceType<T>::GetFunctionID(function), timeout, std::forward<TArgs>(args)...);
 
     // send call and wait for call returning
     tFuture<tReturn> future = request.GetFuture();
@@ -303,7 +303,7 @@ public:
 
     typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, *server_port, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
     tFuture<tReturn> future = request.GetFuture();
     server_port->SendCall(call_storage);
     return future;
@@ -348,7 +348,7 @@ public:
     // prepare storage object
     typedef typename tRequestType<TFunction>::type tRequest;
     typename internal::tCallStorage::tPointer call_storage = internal::tCallStorage::GetUnused();
-    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
+    tRequest& request = call_storage->Emplace<tRequest>(*call_storage, *server_port, tRPCInterfaceType<T>::GetFunctionID(function), std::chrono::seconds(5), std::forward<TArgs>(args)...);
 
     // send call and wait for call returning
     tReturn future = request.GetFuture();
@@ -361,16 +361,20 @@ public:
    * Throws std::runtime_error if port has invalid type
    *
    * \param wrap Type-less port to wrap as tClientPort<T>
+   * \param ignore_flags Ignore port flags and wrap this port as client port anyway
    */
-  static tClientPort Wrap(core::tAbstractPort& wrap)
+  static tClientPort Wrap(core::tAbstractPort& wrap, bool ignore_flags = false)
   {
     if (wrap.GetDataType().GetRttiName() != typeid(T).name())
     {
       throw std::runtime_error("tClientPort<" + rrlib::rtti::Demangle(typeid(T).name()) + "> cannot wrap port with buffer type '" + wrap.GetDataType().GetName() + "'.");
     }
-    if ((wrap.GetFlag(core::tFrameworkElement::tFlag::ACCEPTS_DATA)) || (!wrap.GetFlag(core::tFrameworkElement::tFlag::EMITS_DATA)))
+    if (!ignore_flags)
     {
-      throw std::runtime_error("Port to wrap has invalid flags");
+      if ((wrap.GetFlag(core::tFrameworkElement::tFlag::ACCEPTS_DATA)) || (!wrap.GetFlag(core::tFrameworkElement::tFlag::EMITS_DATA)))
+      {
+        throw std::runtime_error("Port to wrap has invalid flags");
+      }
     }
     tClientPort port;
     port.SetWrapped(&wrap);

@@ -75,7 +75,7 @@ struct tReturnValueSerialization
     stream << return_value;
   }
 
-  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tResponseSender& response_sender, uint8_t function_index, const rrlib::rtti::tType& rpc_interface_type)
   {
     stream >> return_value;
   }
@@ -90,11 +90,11 @@ struct tReturnValueSerialization<TReturn, true, false>
     stream << storage.GetCallId();
   }
 
-  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tResponseSender& response_sender, uint8_t function_index, const rrlib::rtti::tType& rpc_interface_type)
   {
     tCallId call_id;
     stream >> call_id;
-    return_value.SetRemotePromise(function_index, call_id, port);
+    return_value.SetRemotePromise(function_index, call_id, response_sender, rpc_interface_type);
   }
 };
 
@@ -108,11 +108,11 @@ struct tReturnValueSerialization<TReturn, true, true>
     stream << return_value;
   }
 
-  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tRPCPort& port, uint8_t function_index)
+  inline static void Deserialize(rrlib::serialization::tInputStream& stream, TReturn& return_value, tResponseSender& response_sender, uint8_t function_index, const rrlib::rtti::tType& rpc_interface_type)
   {
     tCallId call_id;
     stream >> call_id;
-    return_value.SetRemotePromise(function_index, call_id, port);
+    return_value.SetRemotePromise(function_index, call_id, response_sender, rpc_interface_type);
     stream >> return_value;
   }
 };

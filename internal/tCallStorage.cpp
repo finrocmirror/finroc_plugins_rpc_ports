@@ -78,7 +78,11 @@ tCallStorage::tCallStorage() :
   call_ready_for_sending(NULL),
   reference_counter(0),
   response_handler(NULL),
-  expects_response(false),
+  response_timeout(std::chrono::seconds(0)),
+  call_id(0),
+  call_type(tCallType::UNSPECIFIED),
+  local_port_handle(0),
+  remote_port_handle(0),
   storage_memory()
 {}
 
@@ -97,7 +101,7 @@ typename tCallStorage::tPointer tCallStorage::GetUnused()
   }
   buffer->reference_counter.store(1);
   buffer->call_ready_for_sending = NULL;
-  buffer->expects_response = false;
+  buffer->response_timeout = std::chrono::seconds(0);
   return tPointer(buffer.release());
 }
 

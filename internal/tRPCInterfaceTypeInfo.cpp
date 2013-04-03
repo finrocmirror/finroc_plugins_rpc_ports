@@ -19,33 +19,32 @@
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/internal/tAbstractCall.h
+/*!\file    plugins/rpc_ports/internal/tRPCInterfaceTypeInfo.cpp
  *
  * \author  Max Reichardt
  *
- * \date    2012-12-04
- *
- * \brief   Contains tAbstractCall
- *
- * \b tAbstractCall
- *
- * This is the base class for all "calls" (requests, responses, pull calls)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
+ * \date    2013-02-26
  *
  */
 //----------------------------------------------------------------------
-#ifndef __plugins__rpc_ports__internal__tAbstractCall_h__
-#define __plugins__rpc_ports__internal__tAbstractCall_h__
+#include "plugins/rpc_ports/internal/tRPCInterfaceTypeInfo.h"
 
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include "rrlib/serialization/serialization.h"
+#include "core/log_messages.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
+//----------------------------------------------------------------------
+
+//----------------------------------------------------------------------
+// Debugging
+//----------------------------------------------------------------------
+#include <cassert>
+
+//----------------------------------------------------------------------
+// Namespace usage
 //----------------------------------------------------------------------
 
 //----------------------------------------------------------------------
@@ -61,50 +60,55 @@ namespace internal
 //----------------------------------------------------------------------
 // Forward declarations / typedefs / enums
 //----------------------------------------------------------------------
-class tRPCPort;
-class tResponseSender;
 
 //----------------------------------------------------------------------
-// Class declaration
+// Const values
 //----------------------------------------------------------------------
-//! Base class for "calls"
-/*!
- * This is the base class for all "calls" (requests, responses, pull calls)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
- */
-class tAbstractCall : public boost::noncopyable
+
+//----------------------------------------------------------------------
+// Implementation
+//----------------------------------------------------------------------
+
+tRPCInterfaceTypeInfo::tRPCInterfaceTypeInfo() :
+  tTypeAnnotation(),
+  methods()
+{}
+
+void tRPCInterfaceTypeInfo::DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id)
 {
-
-//----------------------------------------------------------------------
-// Public methods and typedefs
-//----------------------------------------------------------------------
-public:
-
-  tAbstractCall();
-
-  virtual ~tAbstractCall();
-
-  /*!
-   * Deserializes/receives return value from stream
-   */
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender)
+  if (function_id < methods.size())
   {
-    throw new std::runtime_error("This is a call without return value");
+    (*methods[function_id].deserialize_message)(stream, port, function_id);
   }
+  else
+  {
+    FINROC_LOG_PRINT(ERROR, "Invalid function id");
+  }
+}
 
-  /*!
-   * Serializes call to stream
-   */
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) = 0;
+void tRPCInterfaceTypeInfo::DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender)
+{
+  if (function_id < methods.size())
+  {
+    (*methods[function_id].deserialize_request)(stream, port, function_id, response_sender);
+  }
+  else
+  {
+    FINROC_LOG_PRINT(ERROR, "Invalid function id");
+  }
+}
 
-//----------------------------------------------------------------------
-// Private fields and methods
-//----------------------------------------------------------------------
-private:
-
-};
+void tRPCInterfaceTypeInfo::DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage)
+{
+  if (function_id < methods.size())
+  {
+    (*methods[function_id].deserialize_response)(stream, this->GetAnnotatedType(), function_id, response_sender, request_storage);
+  }
+  else
+  {
+    FINROC_LOG_PRINT(ERROR, "Invalid function id");
+  }
+}
 
 //----------------------------------------------------------------------
 // End of namespace declaration
@@ -112,6 +116,3 @@ private:
 }
 }
 }
-
-
-#endif

@@ -45,6 +45,7 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/internal/tRPCInterfaceTypeInfo.h"
 #include "plugins/rpc_ports/internal/tRPCMessage.h"
 #include "plugins/rpc_ports/internal/tRPCRequest.h"
 #include "plugins/rpc_ports/internal/tRPCResponse.h"
@@ -94,9 +95,12 @@ public:
   tRPCInterfaceType(const std::string& name, TFunctions ... functions) :
     rrlib::rtti::tType(GetTypeInfo(name))
   {
-    if (GetTypeInfo()->methods.size() == 0)
+    internal::tRPCInterfaceTypeInfo* type_info = this->GetAnnotation<internal::tRPCInterfaceTypeInfo>();
+    if (!type_info)
     {
-      RegisterFunctions<TFunctions...>(functions...);
+      type_info = new internal::tRPCInterfaceTypeInfo();
+      this->AddAnnotation(type_info);
+      RegisterFunctions<TFunctions...>(*type_info, functions...);
     }
     else
     {
@@ -147,6 +151,8 @@ public:
 //----------------------------------------------------------------------
 private:
 
+  typedef typename internal::tRPCInterfaceTypeInfo::tEntry tEntry;
+
   class tTypeInfo : public rrlib::rtti::tType::tInfo
   {
   public:
@@ -162,22 +168,6 @@ private:
         RRLIB_LOG_PRINT_STATIC(DEBUG_VERBOSE_1, "RPC type ", name, " is statically loaded in '", binary, "'.");
       }
     }
-
-    /*!
-     * One such type-less entry exists for every registered method
-     */
-    struct tEntry
-    {
-      /*! function to deserialize this method from stream */
-      internal::tDeserializeMessage deserialize_message;
-      internal::tDeserializeRequest deserialize_request;
-      internal::tDeserializeResponse deserialize_response;
-    };
-
-    /*!
-     * Methods registered in this interface type
-     */
-    std::vector<tEntry> methods;
   };
 
   /*!
@@ -197,26 +187,26 @@ private:
     return &type_info;
   }
 
-  void RegisterFunctions() {}
+  void RegisterFunctions(internal::tRPCInterfaceTypeInfo& type_info) {}
 
   template <typename TFunction, typename ... TFunctions>
-  void RegisterFunctions(TFunction function, TFunctions ... functions)
+  void RegisterFunctions(internal::tRPCInterfaceTypeInfo& type_info, TFunction function, TFunctions ... functions)
   {
-    RegisterFunction<TFunction>(function);
-    RegisterFunctions(functions...);
+    RegisterFunction<TFunction>(type_info, function);
+    RegisterFunctions(type_info, functions...);
   }
 
   template <typename TFunction>
-  void RegisterFunction(TFunction function)
+  void RegisterFunction(internal::tRPCInterfaceTypeInfo& type_info, TFunction function)
   {
-    GetFunctionIDLookup<TFunction>().push_back(std::pair<TFunction, uint8_t>(function, static_cast<uint8_t>(GetTypeInfo()->methods.size())));
-    typename tTypeInfo::tEntry entry =
+    GetFunctionIDLookup<TFunction>().push_back(std::pair<TFunction, uint8_t>(function, static_cast<uint8_t>(type_info.methods.size())));
+    tEntry entry =
     {
       GetDeserializeMessageFunction(function),
       GetDeserializeRequestFunction(function),
       GetDeserializeResponseFunction(function)
     };
-    GetTypeInfo()->methods.emplace_back(entry);
+    type_info.methods.emplace_back(entry);
   }
 
   template <typename TReturn, typename ... TArgs>
@@ -236,7 +226,7 @@ private:
   internal::tDeserializeResponse GetDeserializeResponseFunction(TReturn(T::*function_pointer)(TArgs...))
   {
     typedef typename std::conditional<std::is_same<TReturn, void>::value, internal::tNoRPCResponse, internal::tRPCResponse<TReturn>>::type tResponse;
-    return &tResponse::template DeserializeAndExecuteCallImplementation<T>;
+    return &tResponse::DeserializeAndExecuteCallImplementation;
   }
 
 

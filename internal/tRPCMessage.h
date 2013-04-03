@@ -49,6 +49,7 @@
 // Internal includes with ""
 //----------------------------------------------------------------------
 #include "plugins/rpc_ports/internal/tAbstractCall.h"
+#include "plugins/rpc_ports/internal/tCallStorage.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -91,10 +92,14 @@ class tRPCMessage : public tAbstractCall
 public:
 
   template <typename ... TCallArgs>
-  tRPCMessage(uint8_t function_index, TCallArgs && ... args) :
+  tRPCMessage(tCallStorage& storage, const rrlib::rtti::tType& rpc_interface_type, uint8_t function_index, TCallArgs && ... args) :
+    rpc_interface_type(rpc_interface_type),
     function_index(function_index),
     parameters(std::forward<TCallArgs>(args)...)
-  {}
+  {
+    storage.call_type = tCallType::RPC_MESSAGE;
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, "Creating Message ", &storage, " ", &storage.call_type);
+  }
 
   template <typename TReturn, typename TInterface>
   static void DeserializeAndExecuteCallImplementation(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id)
@@ -105,7 +110,7 @@ public:
       tParameterTuple parameters;
       stream >> parameters;
       tFunctionPointer function_pointer = tRPCInterfaceType<TInterface>::template GetFunction<tFunctionPointer>(function_id);
-      tClientPort<TInterface> client_port = tClientPort<TInterface>::Wrap(port);
+      tClientPort<TInterface> client_port = tClientPort<TInterface>::Wrap(port, true);
       ExecuteCallImplementation<TInterface, tFunctionPointer>(client_port, function_pointer, parameters, typename rrlib::util::tIntegerSequenceGenerator<sizeof...(TArgs)>::type());
     }
     catch (const std::exception& e)
@@ -119,11 +124,14 @@ public:
 //----------------------------------------------------------------------
 private:
 
+  /*! RPC Interface Type */
+  rrlib::rtti::tType rpc_interface_type;
+
   /*! Index of function in interface */
   uint8_t function_index;
 
   /*! Parameters of RPC call */
-  std::tuple<TArgs...> parameters;
+  tParameterTuple parameters;
 
 
   template <typename TInterface, typename TFunction, int ... SEQUENCE>
@@ -135,7 +143,7 @@ private:
   virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
   {
     // Deserialized by network transport implementation
-    stream << function_index;
+    stream << rpc_interface_type << function_index;
 
     // Deserialized by this class
     stream << parameters;

@@ -51,7 +51,7 @@
 //----------------------------------------------------------------------
 #include "plugins/rpc_ports/tResponseHandler.h"
 #include "plugins/rpc_ports/internal/tCallStorage.h"
-#include "plugins/rpc_ports/internal/tRPCPort.h"
+#include "plugins/rpc_ports/internal/tResponseSender.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -224,16 +224,21 @@ private:
     /*! Id of remote promise - if this is a remote promise */
     internal::tCallId remote_promise_call_id;
 
+    /*! RPC Interface Type */
+    rrlib::rtti::tType rpc_interface_type;
+
     tStorageContents(internal::tCallStorage& storage) :
       storage(storage),
       result_buffer(),
       function_index(0),
-      remote_promise_call_id(0)
+      remote_promise_call_id(0),
+      rpc_interface_type()
     {}
 
     virtual void Serialize(rrlib::serialization::tOutputStream& stream)
     {
       // Deserialized by network transport implementation
+      stream << rpc_interface_type;
       stream << function_index;
       stream << remote_promise_call_id;
 
@@ -256,13 +261,16 @@ private:
   /*!
    * Mark/init this promise a remote promise
    */
-  void SetRemotePromise(uint8_t function_index, internal::tCallId call_id, internal::tRPCPort& port)
+  void SetRemotePromise(uint8_t function_index, internal::tCallId call_id, internal::tResponseSender& response_sender, const rrlib::rtti::tType& rpc_interface_type)
   {
     tStorageContents* contents = static_cast<tStorageContents*>(storage->GetCall());
     contents->function_index = function_index;
     contents->remote_promise_call_id = call_id;
+    contents->rpc_interface_type = rpc_interface_type;
     storage->call_ready_for_sending = &(storage->future_status);
-    port.SendCall(storage->ObtainFuturePointer());
+    storage->call_type = tCallType::RPC_RESPONSE;
+    internal::tCallStorage::tFuturePointer call_pointer = storage->ObtainFuturePointer();
+    response_sender.SendResponse(std::move(call_pointer));
   }
 };
 

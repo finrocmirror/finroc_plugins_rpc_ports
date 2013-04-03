@@ -19,34 +19,33 @@
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/internal/tAbstractCall.h
+/*!\file    plugins/rpc_ports/internal/tRPCInterfaceTypeInfo.h
  *
  * \author  Max Reichardt
  *
- * \date    2012-12-04
+ * \date    2013-02-26
  *
- * \brief   Contains tAbstractCall
+ * \brief   Contains tRPCInterfaceTypeInfo
  *
- * \b tAbstractCall
+ * \b tRPCInterfaceTypeInfo
  *
- * This is the base class for all "calls" (requests, responses, pull calls)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
+ * Information on RPC interface type.
+ * Contains function pointers to deserialization functions.
  *
  */
 //----------------------------------------------------------------------
-#ifndef __plugins__rpc_ports__internal__tAbstractCall_h__
-#define __plugins__rpc_ports__internal__tAbstractCall_h__
+#ifndef __plugins__rpc_ports__internal__tRPCInterfaceTypeInfo_h__
+#define __plugins__rpc_ports__internal__tRPCInterfaceTypeInfo_h__
 
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include "rrlib/serialization/serialization.h"
+#include "rrlib/rtti/tTypeAnnotation.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/definitions.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -55,26 +54,26 @@ namespace finroc
 {
 namespace rpc_ports
 {
-namespace internal
-{
 
 //----------------------------------------------------------------------
 // Forward declarations / typedefs / enums
 //----------------------------------------------------------------------
-class tRPCPort;
-class tResponseSender;
+
+template <typename T>
+class tRPCInterfaceType;
+
+namespace internal
+{
 
 //----------------------------------------------------------------------
 // Class declaration
 //----------------------------------------------------------------------
-//! Base class for "calls"
+//! RPC interface type info
 /*!
- * This is the base class for all "calls" (requests, responses, pull calls)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
+ * Information on RPC interface type.
+ * Contains function pointers to deserialization functions.
  */
-class tAbstractCall : public boost::noncopyable
+class tRPCInterfaceTypeInfo : public rrlib::rtti::tTypeAnnotation
 {
 
 //----------------------------------------------------------------------
@@ -82,27 +81,47 @@ class tAbstractCall : public boost::noncopyable
 //----------------------------------------------------------------------
 public:
 
-  tAbstractCall();
-
-  virtual ~tAbstractCall();
+  tRPCInterfaceTypeInfo();
 
   /*!
-   * Deserializes/receives return value from stream
+   * Deserializes message
    */
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender)
-  {
-    throw new std::runtime_error("This is a call without return value");
-  }
+  void DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id);
 
   /*!
-   * Serializes call to stream
+   * Deserializes request
    */
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) = 0;
+  void DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender);
+
+  /*!
+   * Deserializes response
+   */
+  void DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage);
+
 
 //----------------------------------------------------------------------
 // Private fields and methods
 //----------------------------------------------------------------------
 private:
+
+  template <typename T>
+  friend class finroc::rpc_ports::tRPCInterfaceType;
+
+  /*!
+   * One such type-less entry exists for every registered method
+   */
+  struct tEntry
+  {
+    /*! function to deserialize this method from stream */
+    internal::tDeserializeMessage deserialize_message;
+    internal::tDeserializeRequest deserialize_request;
+    internal::tDeserializeResponse deserialize_response;
+  };
+
+  /*!
+   * Methods registered in this interface type
+   */
+  std::vector<tEntry> methods;
 
 };
 

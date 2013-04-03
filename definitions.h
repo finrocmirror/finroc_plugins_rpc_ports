@@ -35,7 +35,7 @@
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include "rrlib/serialization/serialization.h"
+#include "rrlib/rtti/rtti.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -70,14 +70,32 @@ enum class tFutureStatus
   INVALID_CALL    //!< Function was called that was not allowed
 };
 
+/*!
+ * Types of RPC calls
+ */
+enum class tCallType
+{
+  RPC_MESSAGE,
+  RPC_REQUEST,
+  RPC_RESPONSE,
+  UNSPECIFIED
+};
 
-
+/*!
+ * \param type Data type to check
+ * \return Is specified data type a RPC interface type?
+ */
+inline bool IsRPCType(const rrlib::rtti::tType& type)
+{
+  return (type.GetSize() == 0) && (type.GetType() == rrlib::rtti::tType::tClassification::OTHER);
+}
 
 
 namespace internal
 {
 class tRPCPort;
 class tCallStorage;
+class tResponseSender;
 
 /*!
  * Call id that is attached to requests and responses in order to identify
@@ -89,10 +107,10 @@ typedef uint64_t tCallId;
 typedef void (*tDeserializeMessage)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t);
 
 /*! Function that deserializes and executes call from stream */
-typedef void (*tDeserializeRequest)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t);
+typedef void (*tDeserializeRequest)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t, tResponseSender& response_sender);
 
 /*! Function that deserializes and handles response from stream */
-typedef void (*tDeserializeResponse)(rrlib::serialization::tInputStream&, tRPCPort&, uint8_t, tCallStorage*);
+typedef void (*tDeserializeResponse)(rrlib::serialization::tInputStream&, const rrlib::rtti::tType&, uint8_t, tResponseSender&, tCallStorage*);
 
 } // namespace internal
 

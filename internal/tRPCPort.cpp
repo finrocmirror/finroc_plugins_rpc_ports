@@ -68,7 +68,7 @@ namespace internal
 // Implementation
 //----------------------------------------------------------------------
 
-tRPCPort::tRPCPort(core::tAbstractPortCreationInfo& creation_info, tRPCInterface* call_handler) :
+tRPCPort::tRPCPort(core::tAbstractPortCreationInfo creation_info, tRPCInterface* call_handler) :
   core::tAbstractPort(creation_info),
   call_handler(call_handler)
 {}
@@ -98,6 +98,11 @@ tRPCPort* tRPCPort::GetServer(bool include_network_ports) const
   tRPCPort* current = const_cast<tRPCPort*>(this);
   while (true)
   {
+    if (current->IsServer() || (include_network_ports && current->GetFlag(tFlag::NETWORK_ELEMENT)))
+    {
+      return current;
+    }
+
     const tRPCPort* last = current;
     for (auto it = last->OutgoingConnectionsBegin(); it != last->OutgoingConnectionsEnd(); ++it)
     {
@@ -108,11 +113,6 @@ tRPCPort* tRPCPort::GetServer(bool include_network_ports) const
     if (current == NULL || current == last)
     {
       return NULL;
-    }
-
-    if (current->IsServer() || (include_network_ports && current->GetFlag(tFlag::NETWORK_ELEMENT)))
-    {
-      return current;
     }
   }
 }
