@@ -292,7 +292,7 @@ public:
       tPromise<tReturn> response;
       try
       {
-        response->SetReturnValue((static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...));
+        response->SetValue((static_cast<T*>(server_interface)->*function)(std::forward<TArgs>(args)...));
       }
       catch (const tRPCException& e)
       {

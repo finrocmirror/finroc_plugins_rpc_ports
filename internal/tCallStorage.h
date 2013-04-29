@@ -259,7 +259,7 @@ public:
   }
 
   /*!
-   * \param call_id Call ID for call
+   * \param call_id Identification of call in this process
    */
   void SetCallId(tCallId call_id)
   {

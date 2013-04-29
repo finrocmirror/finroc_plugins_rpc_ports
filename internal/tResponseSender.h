@@ -19,34 +19,31 @@
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/internal/tAbstractCall.h
+/*!\file    plugins/rpc_ports/internal/tResponseSender.h
  *
  * \author  Max Reichardt
  *
- * \date    2012-12-04
+ * \date    2013-02-26
  *
- * \brief   Contains tAbstractCall
+ * \brief   Contains tResponseSender
  *
- * \b tAbstractCall
+ * \b tResponseSender
  *
- * This is the base class for all "calls" (requests, responses, pull calls)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
+ * Sends response RPC calls back to a caller.
  *
  */
 //----------------------------------------------------------------------
-#ifndef __plugins__rpc_ports__internal__tAbstractCall_h__
-#define __plugins__rpc_ports__internal__tAbstractCall_h__
+#ifndef __plugins__rpc_ports__internal__tResponseSender_h__
+#define __plugins__rpc_ports__internal__tResponseSender_h__
 
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include "rrlib/serialization/serialization.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/internal/tRPCPort.h"
 
 //----------------------------------------------------------------------
 // Namespace declaration
@@ -61,20 +58,15 @@ namespace internal
 //----------------------------------------------------------------------
 // Forward declarations / typedefs / enums
 //----------------------------------------------------------------------
-class tRPCPort;
-class tResponseSender;
 
 //----------------------------------------------------------------------
 // Class declaration
 //----------------------------------------------------------------------
-//! Base class for "calls"
+//! Sends response calls
 /*!
- * This is the base class for all "calls" (requests, responses)
- * For calls within the same runtime environment they are not required.
- * They are used to temporarily store such calls in queues for network threads
- * and to serialize calls.
+ * Sends response RPC calls back to a caller.
  */
-class tAbstractCall : public boost::noncopyable
+class tResponseSender
 {
 
 //----------------------------------------------------------------------
@@ -82,27 +74,35 @@ class tAbstractCall : public boost::noncopyable
 //----------------------------------------------------------------------
 public:
 
-  tAbstractCall();
-
-  virtual ~tAbstractCall();
+  typedef tRPCPort::tCallPointer tCallPointer;
 
   /*!
-   * Deserializes/receives return value from stream
+   * Called with any responses that need to be returned to caller
+   *
+   * \param response_to_send Response to send back to caller
    */
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender)
+  void SendResponse(typename tCallStorage::tPointer& response_to_send)
   {
-    throw new std::runtime_error("This is a call without return value");
+    assert(tRPCPort::IsFuturePointer(*response_to_send) == false);
+    SendResponse(tCallPointer(response_to_send.release()));
   }
-
-  /*!
-   * Serializes call to stream
-   */
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) = 0;
+  void SendResponse(typename tCallStorage::tFuturePointer && response_to_send)
+  {
+    assert(tRPCPort::IsFuturePointer(*response_to_send) == true);
+    SendResponse(tCallPointer(response_to_send.release()));
+  }
 
 //----------------------------------------------------------------------
 // Private fields and methods
 //----------------------------------------------------------------------
 private:
+
+  /*!
+   * Called with any responses that need to be returned to caller
+   *
+   * \param response_to_send Response to send back to caller
+   */
+  virtual void SendResponse(tCallPointer && response_to_send) = 0;
 
 };
 
