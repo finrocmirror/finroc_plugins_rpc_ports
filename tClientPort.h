@@ -310,6 +310,16 @@ public:
   }
 
   /*!
+   * \return Handle of server port that handles calls (can be used to detect when
+   *         connected to a different server). 0 if not connected to a server.
+   */
+  typename core::tFrameworkElement::tHandle GetServerHandle()
+  {
+    internal::tRPCPort* server_port = GetWrapped()->GetServer(true);
+    return server_port ? server_port->GetHandle() : 0;
+  }
+
+  /*!
    * \return Wrapped RPC port
    */
   internal::tRPCPort* GetWrapped()

@@ -45,6 +45,7 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
+#include "plugins/rpc_ports/tClientPort.h"
 #include "plugins/rpc_ports/internal/tRPCInterfaceTypeInfo.h"
 #include "plugins/rpc_ports/internal/tRPCMessage.h"
 #include "plugins/rpc_ports/internal/tRPCRequest.h"
