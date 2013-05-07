@@ -25,6 +25,8 @@
  *
  * \date    2012-12-09
  *
+ * \brief
+ *
  * Definitions relevant for RPC pluginsdf asdfg asdf asdf a
  *
  */
