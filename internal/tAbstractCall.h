@@ -74,7 +74,7 @@ class tResponseSender;
  * They are used to temporarily store such calls in queues for network threads
  * and to serialize calls.
  */
-class tAbstractCall : public boost::noncopyable
+class tAbstractCall : private rrlib::util::tNoncopyable
 {
 
 //----------------------------------------------------------------------

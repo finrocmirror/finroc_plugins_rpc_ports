@@ -71,7 +71,7 @@ template <typename TReturn, bool PROMISE, bool SERIALIZABLE>
 struct tReturnValueSerialization;
 
 /*! Base class for all promises - to be able to identify them */
-class tIsPromise : public boost::noncopyable {};
+class tIsPromise : private rrlib::util::tNoncopyable {};
 }
 
 //----------------------------------------------------------------------

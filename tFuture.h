@@ -71,7 +71,7 @@ template <typename TReturn>
 class tRPCResponse;
 
 /*! Base class for all futures - to be able to identify them */
-class tIsFuture : public boost::noncopyable {};
+class tIsFuture : private rrlib::util::tNoncopyable {};
 }
 
 //----------------------------------------------------------------------

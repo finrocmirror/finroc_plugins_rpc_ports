@@ -65,7 +65,7 @@ namespace internal
 /*!
  * Base class for all response handlers.
  */
-class tAbstractResponseHandler : public boost::noncopyable
+class tAbstractResponseHandler : private rrlib::util::tNoncopyable
 {
 
 //----------------------------------------------------------------------
