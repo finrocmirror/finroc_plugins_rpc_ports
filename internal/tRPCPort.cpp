@@ -32,6 +32,7 @@
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
+#include "core/port/tPortFactory.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -67,6 +68,26 @@ namespace internal
 //----------------------------------------------------------------------
 // Implementation
 //----------------------------------------------------------------------
+
+class tRpcPortFactory : public core::tPortFactory
+{
+  virtual core::tAbstractPort& CreatePortImplementation(const std::string& port_name, core::tFrameworkElement& parent,
+      const rrlib::rtti::tType& type, core::tFrameworkElement::tFlags flags)
+  {
+    core::tAbstractPortCreationInfo creation_info;
+    creation_info.flags = flags | core::tFrameworkElement::tFlag::ACCEPTS_DATA | core::tFrameworkElement::tFlag::EMITS_DATA;
+    creation_info.data_type = type;
+    creation_info.parent = &parent;
+    creation_info.name = port_name;
+    return *(new tRPCPort(creation_info, NULL));
+  }
+
+  virtual bool HandlesDataType(const rrlib::rtti::tType& type)
+  {
+    return IsRPCType(type);
+  }
+};
+
 
 tRPCPort::tRPCPort(core::tAbstractPortCreationInfo creation_info, tRPCInterface* call_handler) :
   core::tAbstractPort(creation_info),
