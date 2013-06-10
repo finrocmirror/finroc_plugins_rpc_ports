@@ -88,6 +88,8 @@ class tRpcPortFactory : public core::tPortFactory
   }
 };
 
+tRpcPortFactory default_rpc_port_factory;
+
 
 tRPCPort::tRPCPort(core::tAbstractPortCreationInfo creation_info, tRPCInterface* call_handler) :
   core::tAbstractPort(creation_info),
