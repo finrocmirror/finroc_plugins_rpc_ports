@@ -46,7 +46,6 @@
 // Internal includes with ""
 //----------------------------------------------------------------------
 #include "plugins/rpc_ports/tClientPort.h"
-#include "plugins/rpc_ports/tPortCreationInfo.h"
 #include "plugins/rpc_ports/tRPCInterfaceType.h"
 #include "plugins/rpc_ports/internal/tRPCPort.h"
 
@@ -95,21 +94,13 @@ public:
    *
    * \param interface Object that handles calls on server side
    */
-  template <typename TArg1, typename ... TRest>
-  tServerPort(T& interface, const TArg1& arg1, const TRest& ... args)
+  template <typename ... TArguments>
+  tServerPort(T& interface, const TArguments& ... args)
   {
-    if (!this->CopyConstruction<tServerPort>(&arg1))
-    {
-      tPortCreationInfo<T> creation_info(arg1, args..., interface);
-      if (!creation_info.call_handler)
-      {
-        FINROC_LOG_PRINT(ERROR, "Call handler has to be specified for server port");
-        throw std::runtime_error("Call handler has to be specified for server port");
-      }
-      creation_info.data_type = tRPCInterfaceType<T>();
-      creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
-      this->SetWrapped(new internal::tRPCPort(creation_info, creation_info.call_handler));
-    }
+    tConstructorArguments<core::tAbstractPortCreationInfo> creation_info(args...);
+    creation_info.data_type = tRPCInterfaceType<T>();
+    creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
+    this->SetWrapped(new internal::tRPCPort(creation_info, &interface));
   }
 
   /*!

@@ -46,7 +46,6 @@
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
-#include "plugins/rpc_ports/tPortCreationInfo.h"
 #include "plugins/rpc_ports/tResponseHandler.h"
 #include "plugins/rpc_ports/tRPCException.h"
 #include "plugins/rpc_ports/tRPCInterfaceType.h"
@@ -130,16 +129,21 @@ public:
    * tFrameworkElementFlag arguments are interpreted as flags.
    * tAbstractPortCreationInfo argument is copied. This is only allowed as first argument.
    */
-  template <typename TArg1, typename ... TRest>
-  tClientPort(const TArg1& arg1, const TRest& ... args)
+  template <typename TArg1, typename TArg2, typename ... TRest>
+  tClientPort(const TArg1& arg1, const TArg2& arg2, const TRest&... args)
   {
-    if (!this->CopyConstruction<tClientPort>(&arg1))
-    {
-      tPortCreationInfo<T> creation_info(arg1, args...);
-      creation_info.data_type = tRPCInterfaceType<T>();
-      creation_info.flags |= core::tFrameworkElement::tFlag::EMITS_DATA | core::tFrameworkElement::tFlag::OUTPUT_PORT;
-      this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
-    }
+    tConstructorArguments<core::tAbstractPortCreationInfo> creation_info(arg1, arg2, args...);
+    creation_info.data_type = tRPCInterfaceType<T>();
+    creation_info.flags |= core::tFrameworkElement::tFlag::EMITS_DATA | core::tFrameworkElement::tFlag::OUTPUT_PORT;
+    this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
+  }
+
+  // with a single argument, we do not want catch calls for copy construction
+  template < typename TArgument1, bool ENABLE = !std::is_base_of<tClientPort, TArgument1>::value >
+  tClientPort(const TArgument1& argument1, typename std::enable_if<ENABLE, tNoArgument>::type no_argument = tNoArgument())
+  {
+    // Call the above constructor
+    *this = tClientPort(tFlags(), argument1);
   }
 
 
