@@ -381,7 +381,7 @@ public:
   {
     if (wrap.GetDataType().GetRttiName() != typeid(T).name())
     {
-      throw std::runtime_error("tClientPort<" + rrlib::rtti::Demangle(typeid(T).name()) + "> cannot wrap port with buffer type '" + wrap.GetDataType().GetName() + "'.");
+      throw std::runtime_error("tClientPort<" + rrlib::util::Demangle(typeid(T).name()) + "> cannot wrap port with buffer type '" + wrap.GetDataType().GetName() + "'.");
     }
     if (!ignore_flags)
     {
