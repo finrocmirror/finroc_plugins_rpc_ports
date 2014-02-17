@@ -43,6 +43,8 @@
 #include <functional>
 #include "core/port/tPortWrapperBase.h"
 
+#include "rrlib/util/demangle.h"
+
 //----------------------------------------------------------------------
 // Internal includes with ""
 //----------------------------------------------------------------------
