@@ -219,7 +219,7 @@ private:
   tCallId call_id;
 
 
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender) // TODO: mark override in gcc 4.7
+  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender) override
   {
     ReturnValueImplementation(stream);
   }
@@ -238,7 +238,7 @@ private:
     throw std::runtime_error("Not a promise response");
   }
 
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
+  virtual void Serialize(rrlib::serialization::tOutputStream& stream) override
   {
     // Deserialized by network transport implementation
     stream << rpc_interface_type << function_index;
@@ -295,7 +295,7 @@ private:
   tFuture<TReturn> response_future;
 
 
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
+  virtual void Serialize(rrlib::serialization::tOutputStream& stream) override
   {
     // Deserialized by network transport implementation
     stream << this->rpc_interface_type << this->function_index;

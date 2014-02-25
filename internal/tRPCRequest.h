@@ -256,14 +256,14 @@ private:
     response_sender.SendResponse(call_storage);
   }
 
-  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender) // TODO: mark override in gcc 4.7
+  virtual void ReturnValue(rrlib::serialization::tInputStream& stream, tResponseSender& response_sender) override
   {
     tReturnInternal result;
     tReturnSerialization::Deserialize(stream, result, response_sender, function_index, rpc_interface_type);
     ReturnValue(std::move(result));
   }
 
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
+  virtual void Serialize(rrlib::serialization::tOutputStream& stream) override
   {
     // Deserialized by network transport implementation
     stream << rpc_interface_type << function_index;

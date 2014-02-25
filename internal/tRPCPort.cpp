@@ -72,7 +72,7 @@ namespace internal
 class tRpcPortFactory : public core::tPortFactory
 {
   virtual core::tAbstractPort& CreatePortImplementation(const std::string& port_name, core::tFrameworkElement& parent,
-      const rrlib::rtti::tType& type, core::tFrameworkElement::tFlags flags)
+      const rrlib::rtti::tType& type, core::tFrameworkElement::tFlags flags) override
   {
     core::tAbstractPortCreationInfo creation_info;
     creation_info.flags = flags | core::tFrameworkElement::tFlag::ACCEPTS_DATA | core::tFrameworkElement::tFlag::EMITS_DATA;
@@ -82,7 +82,7 @@ class tRpcPortFactory : public core::tPortFactory
     return *(new tRPCPort(creation_info, NULL));
   }
 
-  virtual bool HandlesDataType(const rrlib::rtti::tType& type)
+  virtual bool HandlesDataType(const rrlib::rtti::tType& type) override
   {
     return IsRPCType(type);
   }

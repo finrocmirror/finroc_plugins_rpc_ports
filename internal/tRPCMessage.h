@@ -140,7 +140,7 @@ private:
     client_port.Call(function_pointer, std::move(std::get<SEQUENCE>(parameters))...);
   }
 
-  virtual void Serialize(rrlib::serialization::tOutputStream& stream) // TODO: mark override in gcc 4.7
+  virtual void Serialize(rrlib::serialization::tOutputStream& stream) override
   {
     // Deserialized by network transport implementation
     stream << rpc_interface_type << function_index;

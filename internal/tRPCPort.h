@@ -173,9 +173,9 @@ private:
   tRPCInterface* const call_handler;
 
 
-  virtual void ConnectionAdded(tAbstractPort& partner, bool partner_is_destination); // TODO mark override with gcc 4.7
+  virtual void ConnectionAdded(tAbstractPort& partner, bool partner_is_destination) override;
 
-  virtual tAbstractPort::tConnectDirection InferConnectDirection(const tAbstractPort& other) const; // TODO mark override with gcc 4.7
+  virtual tAbstractPort::tConnectDirection InferConnectDirection(const tAbstractPort& other) const override;
 
   static bool IsFuturePointer(tCallStorage& call_storage)
   {

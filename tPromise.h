@@ -235,7 +235,7 @@ private:
       rpc_interface_type()
     {}
 
-    virtual void Serialize(rrlib::serialization::tOutputStream& stream)
+    virtual void Serialize(rrlib::serialization::tOutputStream& stream) override
     {
       // Deserialized by network transport implementation
       stream << rpc_interface_type;
