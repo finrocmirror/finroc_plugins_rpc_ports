@@ -84,6 +84,8 @@ public:
     return type;
   }
 
+  virtual const char* what() const throw();
+
 //----------------------------------------------------------------------
 // Private fields and methods
 //----------------------------------------------------------------------
@@ -91,8 +93,6 @@ private:
 
   /*! Exception type - reason why exception occured */
   tFutureStatus type;
-
-  virtual const char* what() const throw();
 
 };
 
