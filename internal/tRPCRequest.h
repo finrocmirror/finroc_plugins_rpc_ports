@@ -86,7 +86,7 @@ class tRPCRequest : public tAbstractCall
   typedef typename std::conditional<cNATIVE_FUTURE_FUNCTION, TReturn, tFuture<TReturn>>::type tResponseFuture;
   typedef typename tResponseFuture::tValue tReturnInternal;
   enum { cPROMISE_RESULT = std::is_base_of<internal::tIsPromise, tReturnInternal>::value };
-  typedef tReturnValueSerialization<tReturnInternal, cPROMISE_RESULT, rrlib::serialization::tIsBinarySerializable<tReturnInternal>::value> tReturnSerialization;
+  typedef tReturnValueSerialization<tReturnInternal, cPROMISE_RESULT, rrlib::serialization::IsBinarySerializable<tReturnInternal>::value> tReturnSerialization;
 
 //----------------------------------------------------------------------
 // Public methods and typedefs

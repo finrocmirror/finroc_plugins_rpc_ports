@@ -78,7 +78,7 @@ class tRPCResponse : public tAbstractCall //, public tResponseHandler<TReturn>
 {
 
   enum { cPROMISE_RESULT = std::is_base_of<tIsPromise, TReturn>::value };
-  typedef tReturnValueSerialization<TReturn, cPROMISE_RESULT, rrlib::serialization::tIsBinarySerializable<TReturn>::value> tReturnSerialization;
+  typedef tReturnValueSerialization<TReturn, cPROMISE_RESULT, rrlib::serialization::IsBinarySerializable<TReturn>::value> tReturnSerialization;
   typedef typename std::conditional<cPROMISE_RESULT, TReturn, tPromise<TReturn>>::type tResponsePromise;
   typedef typename tResponsePromise::tValue tPromiseValue;
 
