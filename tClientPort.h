@@ -137,7 +137,10 @@ public:
     tConstructorArguments<core::tAbstractPortCreationInfo> creation_info(arg1, arg2, args...);
     creation_info.data_type = tRPCInterfaceType<T>();
     creation_info.flags |= core::tFrameworkElement::tFlag::EMITS_DATA | core::tFrameworkElement::tFlag::OUTPUT_PORT;
-    this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
+    if (!(creation_info.flags.Raw() & core::tFrameworkElementFlags(core::tFrameworkElementFlag::DELETED).Raw())) // do not create port, if deleted flag is set
+    {
+      this->SetWrapped(new internal::tRPCPort(creation_info, NULL));
+    }
   }
 
   // with a single argument, we do not want catch calls for copy construction

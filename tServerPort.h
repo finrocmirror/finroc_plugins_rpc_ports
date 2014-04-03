@@ -100,7 +100,10 @@ public:
     tConstructorArguments<core::tAbstractPortCreationInfo> creation_info(args...);
     creation_info.data_type = tRPCInterfaceType<T>();
     creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
-    this->SetWrapped(new internal::tRPCPort(creation_info, &interface));
+    if (!(creation_info.flags.Raw() & core::tFrameworkElementFlags(core::tFrameworkElementFlag::DELETED).Raw())) // do not create port, if deleted flag is set
+    {
+      this->SetWrapped(new internal::tRPCPort(creation_info, &interface));
+    }
   }
 
   /*!
