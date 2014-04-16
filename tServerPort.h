@@ -76,8 +76,6 @@ class tServerPort : public core::tPortWrapperBase
 {
   static_assert(std::is_base_of<tRPCInterface, T>::value, "T must be subclass of tRPCInterface");
 
-  struct tServerPortCreationInfo;
-
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
@@ -98,7 +96,7 @@ public:
   template <typename TArgument1, typename ... TArguments>
   explicit tServerPort(TArgument1&& arg1, TArguments&& ... args)
   {
-    tConstructorArguments<tServerPortCreationInfo> creation_info(std::forward<TArgument1>(arg1), std::forward<TArguments>(args)...);
+    tConstructorArguments<tConstructorParameters> creation_info(std::forward<TArgument1>(arg1), std::forward<TArguments>(args)...);
     creation_info.data_type = tRPCInterfaceType<T>();
     creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
     if (!creation_info.server_interface)
@@ -132,26 +130,31 @@ public:
     return port;
   }
 
-//----------------------------------------------------------------------
-// Private fields and methods
-//----------------------------------------------------------------------
-private:
-
   /*! Creation info for server ports */
-  struct tServerPortCreationInfo : core::tAbstractPortCreationInfo
+  struct tConstructorParameters : core::tAbstractPortCreationInfo
   {
     typedef core::tAbstractPortCreationInfo tBase;
 
     /*! Pointer to server interface */
     T* server_interface;
 
-    tServerPortCreationInfo() : server_interface(nullptr) {}
+    tConstructorParameters() : server_interface(nullptr) {}
+
+    /*! Set methods for parameter-specific properties */
+    void Set(const tConstructorParameters& other)
+    {
+      *this = other;
+    }
 
     void Set(T& server_interface)
     {
       this->server_interface = &server_interface;
     }
   };
+//----------------------------------------------------------------------
+// Private fields and methods
+//----------------------------------------------------------------------
+private:
 };
 
 //----------------------------------------------------------------------
