@@ -76,6 +76,8 @@ class tServerPort : public core::tPortWrapperBase
 {
   static_assert(std::is_base_of<tRPCInterface, T>::value, "T must be subclass of tRPCInterface");
 
+  struct tServerPortCreationInfo;
+
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
@@ -87,22 +89,25 @@ public:
   /*!
    * Constructor takes variadic argument list... just any properties you want to assign to port.
    *
+   * It is mandatory to provide a reference to T to the constructor.
    * The first string is interpreted as port name, the second possibly as config entry (relevant for parameters only).
    * A framework element pointer is interpreted as parent.
    * tFrameworkElementFlag arguments are interpreted as flags.
    * tAbstractPortCreationInfo argument is copied. This is only allowed as first argument.
-   *
-   * \param interface Object that handles calls on server side
    */
-  template <typename ... TArguments>
-  tServerPort(T& interface, const TArguments& ... args)
+  template <typename TArgument1, typename ... TArguments>
+  explicit tServerPort(TArgument1&& arg1, TArguments&& ... args)
   {
-    tConstructorArguments<core::tAbstractPortCreationInfo> creation_info(args...);
+    tConstructorArguments<tServerPortCreationInfo> creation_info(std::forward<TArgument1>(arg1), std::forward<TArguments>(args)...);
     creation_info.data_type = tRPCInterfaceType<T>();
     creation_info.flags |= core::tFrameworkElement::tFlag::ACCEPTS_DATA;
+    if (!creation_info.server_interface)
+    {
+      throw std::runtime_error("Server object must be provided");
+    }
     if (!(creation_info.flags.Raw() & core::tFrameworkElementFlags(core::tFrameworkElementFlag::DELETED).Raw())) // do not create port, if deleted flag is set
     {
-      this->SetWrapped(new internal::tRPCPort(creation_info, &interface));
+      this->SetWrapped(new internal::tRPCPort(creation_info, creation_info.server_interface));
     }
   }
 
@@ -132,6 +137,21 @@ public:
 //----------------------------------------------------------------------
 private:
 
+  /*! Creation info for server ports */
+  struct tServerPortCreationInfo : core::tAbstractPortCreationInfo
+  {
+    typedef core::tAbstractPortCreationInfo tBase;
+
+    /*! Pointer to server interface */
+    T* server_interface;
+
+    tServerPortCreationInfo() : server_interface(nullptr) {}
+
+    void Set(T& server_interface)
+    {
+      this->server_interface = &server_interface;
+    }
+  };
 };
 
 //----------------------------------------------------------------------
