@@ -19,7 +19,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //
 //----------------------------------------------------------------------
-/*!\file    plugins/rpc_ports/test/basic_operation.cpp
+/*!\file    plugins/rpc_ports/tests/basic_operation.cpp
  *
  * \author  Max Reichardt
  *
@@ -32,6 +32,7 @@
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
+#include "rrlib/util/tUnitTestSuite.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -47,7 +48,14 @@
 //----------------------------------------------------------------------
 // Namespace usage
 //----------------------------------------------------------------------
-using namespace finroc::rpc_ports;
+
+//----------------------------------------------------------------------
+// Namespace declaration
+//----------------------------------------------------------------------
+namespace finroc
+{
+namespace rpc_ports
+{
 
 //----------------------------------------------------------------------
 // Forward declarations / typedefs / enums
@@ -60,47 +68,62 @@ using namespace finroc::rpc_ports;
 //----------------------------------------------------------------------
 // Implementation
 //----------------------------------------------------------------------
+static bool test_called = false;
+static std::string string_test_called_with = "";
+
 class tTestInterface : public tRPCInterface
 {
 public:
   int Function(double d)
   {
-    return 4;
+    return 4 * d;
   }
 
   virtual void Test()
   {
-    FINROC_LOG_PRINT(USER, "Test() Called");
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, "Test() Called");
+    test_called = true;
   }
 
   void StringTest(const std::string& string)
   {
-    FINROC_LOG_PRINT(USER, "StringTest() called with '", string, "'");
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, "StringTest() called with '", string, "'");
+    string_test_called_with = string;
   }
 };
 
 tRPCInterfaceType<tTestInterface> cTYPE("Test interface", &tTestInterface::Function, &tTestInterface::Test, &tTestInterface::StringTest);
 
 
-int main(int, char**)
+class BasicOperationTest : public rrlib::util::tUnitTestSuite
 {
-  tTestInterface test_interface;
+  RRLIB_UNIT_TESTS_BEGIN_SUITE(BasicOperationTest);
+  RRLIB_UNIT_TESTS_ADD_TEST(Test);
+  RRLIB_UNIT_TESTS_END_SUITE;
 
-  tClientPort<tTestInterface> client_port("Client port");
-  tServerPort<tTestInterface> server_port(test_interface, "Server port");
-  client_port.GetParent()->InitAll();
-  client_port.ConnectTo(server_port);
+  void Test()
+  {
+    tTestInterface test_interface;
 
-  int m = client_port.CallSynchronous(std::chrono::seconds(2), &tTestInterface::Function, 4);
-  FINROC_LOG_PRINT(USER, "Call returned ", m);
-  client_port.Call(&tTestInterface::Test);
-  client_port.Call(&tTestInterface::StringTest, "a string");
-  return 0;
+    tClientPort<tTestInterface> client_port("Client port");
+    tServerPort<tTestInterface> server_port(test_interface, "Server port");
+    client_port.GetParent()->InitAll();
+    client_port.ConnectTo(server_port);
+
+    int m = client_port.CallSynchronous(std::chrono::seconds(2), &tTestInterface::Function, 4);
+    RRLIB_UNIT_TESTS_EQUALITY(m, 16);
+    FINROC_LOG_PRINT(DEBUG_VERBOSE_1, "Call returned ", m);
+    client_port.Call(&tTestInterface::Test);
+    RRLIB_UNIT_TESTS_ASSERT(test_called);
+    client_port.Call(&tTestInterface::StringTest, "a string");
+    RRLIB_UNIT_TESTS_EQUALITY(string_test_called_with, std::string("a string"));
+  }
+};
+
+RRLIB_UNIT_TESTS_REGISTER_SUITE(BasicOperationTest);
+
+//----------------------------------------------------------------------
+// End of namespace declaration
+//----------------------------------------------------------------------
 }
-
-// some other experiments...
-
-typedef double(*func)(int);
-
-template <func T>
-struct X {};
+}
