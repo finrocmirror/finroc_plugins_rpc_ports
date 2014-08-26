@@ -157,12 +157,8 @@ private:
   class tTypeInfo : public rrlib::rtti::tType::tInfo
   {
   public:
-    tTypeInfo(const std::string& name)
+    tTypeInfo(const std::string& name) : tInfo(rrlib::rtti::tType::tClassification::OTHER, typeid(T).name(), name)
     {
-      this->type = rrlib::rtti::tType::tClassification::OTHER;
-      this->name = name;
-      this->rtti_name = typeid(T).name();
-      this->default_name = false;
       binary = rrlib::rtti::GetBinaryCurrentlyPerformingStaticInitialization();
       if (binary.length() > 0)
       {
