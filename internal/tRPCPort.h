@@ -173,14 +173,14 @@ private:
   tRPCInterface* const call_handler;
 
 
-  virtual void ConnectionAdded(tAbstractPort& partner, bool partner_is_destination) override;
-
   virtual tAbstractPort::tConnectDirection InferConnectDirection(const tAbstractPort& other) const override;
 
   static bool IsFuturePointer(tCallStorage& call_storage)
   {
     return call_storage.call_ready_for_sending == &(call_storage.future_status); // slightly ugly... but memory efficient (and we have the assertions)
   }
+
+  virtual void OnConnect(tAbstractPort& partner, bool partner_is_destination) override;
 
   /*!
    * To be overridden by network port subclass

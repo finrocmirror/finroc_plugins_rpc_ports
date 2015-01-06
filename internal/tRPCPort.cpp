@@ -100,22 +100,6 @@ tRPCPort::~tRPCPort()
 {}
 
 
-void tRPCPort::ConnectionAdded(tAbstractPort& partner, bool partner_is_destination)
-{
-  // Disconnect any server ports we might already be connected to.
-  if (partner_is_destination)
-  {
-    for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
-    {
-      if (&(*it) != &partner)
-      {
-        FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->GetQualifiedName(), "' and adding the new one to '", partner.GetQualifiedName(), "'.");
-        it->DisconnectFrom(*this);
-      }
-    }
-  }
-}
-
 tRPCPort* tRPCPort::GetServer(bool include_network_ports) const
 {
   tRPCPort* current = const_cast<tRPCPort*>(this);
@@ -160,6 +144,22 @@ core::tAbstractPort::tConnectDirection tRPCPort::InferConnectDirection(const tAb
   }
 
   return tAbstractPort::InferConnectDirection(other);
+}
+
+void tRPCPort::OnConnect(tAbstractPort& partner, bool partner_is_destination)
+{
+  // Disconnect any server ports we might already be connected to.
+  if (partner_is_destination)
+  {
+    for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
+    {
+      if (&(*it) != &partner)
+      {
+        FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->GetQualifiedName(), "' and adding the new one to '", partner.GetQualifiedName(), "'.");
+        it->DisconnectFrom(*this);
+      }
+    }
+  }
 }
 
 //----------------------------------------------------------------------
