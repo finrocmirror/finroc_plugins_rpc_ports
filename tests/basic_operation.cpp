@@ -74,7 +74,7 @@ static std::string string_test_called_with = "";
 class tTestInterface : public tRPCInterface
 {
 public:
-  int Function(double d)
+  int Function(double d) const
   {
     return 4 * d;
   }

@@ -94,6 +94,9 @@ class tClientPort : public core::tPortWrapperBase
     template <typename RETURN, typename ... TArgs>
     static RETURN ExtractReturnType(RETURN(T::*function_pointer)(TArgs...));
 
+    template <typename RETURN, typename ... TArgs>
+    static RETURN ExtractReturnType(RETURN(T::*function_pointer)(TArgs...) const);
+
     typedef decltype(ExtractReturnType(MakeU<TFunction>())) type;
   };
 
@@ -103,6 +106,9 @@ class tClientPort : public core::tPortWrapperBase
     template <typename RETURN, typename ... TArgs>
     static internal::tRPCMessage<TArgs...> ExtractMessageType(RETURN(T::*function_pointer)(TArgs...));
 
+    template <typename RETURN, typename ... TArgs>
+    static internal::tRPCMessage<TArgs...> ExtractMessageType(RETURN(T::*function_pointer)(TArgs...) const);
+
     typedef decltype(ExtractMessageType(MakeU<TFunction>())) type;
   };
 
@@ -111,6 +117,9 @@ class tClientPort : public core::tPortWrapperBase
   {
     template <typename RETURN, typename ... TArgs>
     static internal::tRPCRequest<RETURN, TArgs...> ExtractRequestType(RETURN(T::*function_pointer)(TArgs...));
+
+    template <typename RETURN, typename ... TArgs>
+    static internal::tRPCRequest<RETURN, TArgs...> ExtractRequestType(RETURN(T::*function_pointer)(TArgs...) const);
 
     typedef decltype(ExtractRequestType(MakeU<TFunction>())) type;
   };

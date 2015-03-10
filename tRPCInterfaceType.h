@@ -211,6 +211,11 @@ private:
   {
     return &internal::tRPCMessage<TArgs...>::template DeserializeAndExecuteCallImplementation<TReturn, T>;
   }
+  template <typename TReturn, typename ... TArgs>
+  internal::tDeserializeMessage GetDeserializeMessageFunction(TReturn(T::*function_pointer)(TArgs...) const)
+  {
+    return &internal::tRPCMessage<TArgs...>::template DeserializeAndExecuteCallImplementation<TReturn, T>;
+  }
 
   template <typename TReturn, typename ... TArgs>
   internal::tDeserializeRequest GetDeserializeRequestFunction(TReturn(T::*function_pointer)(TArgs...))
@@ -218,9 +223,21 @@ private:
     typedef typename std::conditional<std::is_same<TReturn, void>::value, internal::tNoRPCRequest, internal::tRPCRequest<TReturn, TArgs...>>::type tRequest;
     return &tRequest::template DeserializeAndExecuteCallImplementation<T>;
   }
+  template <typename TReturn, typename ... TArgs>
+  internal::tDeserializeRequest GetDeserializeRequestFunction(TReturn(T::*function_pointer)(TArgs...) const)
+  {
+    typedef typename std::conditional<std::is_same<TReturn, void>::value, internal::tNoRPCRequest, internal::tRPCRequest<TReturn, TArgs...>>::type tRequest;
+    return &tRequest::template DeserializeAndExecuteCallImplementation<T>;
+  }
 
   template <typename TReturn, typename ... TArgs>
   internal::tDeserializeResponse GetDeserializeResponseFunction(TReturn(T::*function_pointer)(TArgs...))
+  {
+    typedef typename std::conditional<std::is_same<TReturn, void>::value, internal::tNoRPCResponse, internal::tRPCResponse<TReturn>>::type tResponse;
+    return &tResponse::DeserializeAndExecuteCallImplementation;
+  }
+  template <typename TReturn, typename ... TArgs>
+  internal::tDeserializeResponse GetDeserializeResponseFunction(TReturn(T::*function_pointer)(TArgs...) const)
   {
     typedef typename std::conditional<std::is_same<TReturn, void>::value, internal::tNoRPCResponse, internal::tRPCResponse<TReturn>>::type tResponse;
     return &tResponse::DeserializeAndExecuteCallImplementation;
