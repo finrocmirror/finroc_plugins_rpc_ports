@@ -144,7 +144,7 @@ public:
     }
     catch (const std::exception& e)
     {
-      FINROC_LOG_PRINT(DEBUG, "Incoming RPC response caused exception: ", e);
+      FINROC_LOG_PRINT_STATIC(DEBUG, "Incoming RPC response caused exception: ", e);
     }
   }
 
