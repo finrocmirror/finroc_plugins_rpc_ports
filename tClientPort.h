@@ -409,6 +409,8 @@ public:
     return port;
   }
 
+  typedef core::tAbstractPortCreationInfo tConstructorParameters; // typedef required by finroc::structure::tConveniencePort
+
 //----------------------------------------------------------------------
 // Private fields and methods
 //----------------------------------------------------------------------
