@@ -90,9 +90,15 @@ class tRpcPortFactory : public core::tPortFactory
 
 tRpcPortFactory default_rpc_port_factory;
 
+static core::tAbstractPortCreationInfo ProcessPortCreationInfo(core::tAbstractPortCreationInfo& info)
+{
+  info.flags.Set(core::tFrameworkElement::tFlag::PUSH_STRATEGY, false); // unsets push strategy flag so that port is not erroneously identified as data port
+  return info;
+}
+
 
 tRPCPort::tRPCPort(core::tAbstractPortCreationInfo creation_info, tRPCInterface* call_handler) :
-  core::tAbstractPort(creation_info),
+  core::tAbstractPort(ProcessPortCreationInfo(creation_info)),
   call_handler(call_handler)
 {}
 
