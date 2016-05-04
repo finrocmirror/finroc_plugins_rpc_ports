@@ -130,7 +130,7 @@ public:
    * Storage size in bytes
    * This is the maximum size of call classes stored in this object
    */
-  enum { cSTORAGE_SIZE = 256 };
+  enum { cSTORAGE_SIZE = 640 };
 
   tCallStorage();
 
@@ -160,7 +160,7 @@ public:
   TCallClass& Emplace(TArgs && ... constructor_arguments)
   {
     static_assert(std::is_base_of<tAbstractCall, TCallClass>::value, "Must be subclass of tAbstractCall");
-    static_assert(sizeof(TCallClass) < cSTORAGE_SIZE, "TCallClass is to big");
+    CheckSize<sizeof(TCallClass)>();
     Clear();
     TCallClass& result = *(new(storage_memory) TCallClass(std::forward<TArgs>(constructor_arguments)...));
     empty = false;
@@ -372,6 +372,15 @@ private:
     int old = reference_counter.fetch_add(1);
     assert(old >= 1 && "Obtained pointer to object without reference.");
     return tFuturePointer(this);
+  }
+
+  /*!
+   * Helper function to check whether TCallClass fits into cSTORAGE_SIZE (with indication of required size in compiler output)
+   */
+  template <size_t Tsize>
+  void CheckSize()
+  {
+    static_assert(Tsize < cSTORAGE_SIZE, "Size of TCallClass is too big");
   }
 };
 
