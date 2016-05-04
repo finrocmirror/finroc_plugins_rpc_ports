@@ -160,8 +160,9 @@ public:
   TCallClass& Emplace(TArgs && ... constructor_arguments)
   {
     static_assert(std::is_base_of<tAbstractCall, TCallClass>::value, "Must be subclass of tAbstractCall");
+    static_assert(sizeof(TCallClass) < cSTORAGE_SIZE, "TCallClass is to big");
     Clear();
-    TCallClass& result = *(new(&storage_memory) TCallClass(std::forward<TArgs>(constructor_arguments)...));
+    TCallClass& result = *(new(storage_memory) TCallClass(std::forward<TArgs>(constructor_arguments)...));
     empty = false;
     assert((&result == &static_cast<tAbstractCall&>(result)) && "tAbstractCall base class needs to be at offset zero");
     return result;
@@ -180,7 +181,7 @@ public:
    */
   tAbstractCall* GetCall()
   {
-    return empty ? NULL : reinterpret_cast<tAbstractCall*>(&storage_memory);
+    return empty ? nullptr : reinterpret_cast<tAbstractCall*>(storage_memory);
   }
 
   /*!
@@ -355,8 +356,11 @@ private:
   tHandle remote_port_handle;
 
   /*! Call class storage memory */
-  std::array<unsigned char, 256> storage_memory;
-
+  union
+  {
+    unsigned char storage_memory[cSTORAGE_SIZE];
+    int64_t storage_memory64; // for 8-byte-alignment
+  };
 
   /*!
    * \return Smart pointer to use inside tFuture
