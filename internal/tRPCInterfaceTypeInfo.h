@@ -40,7 +40,6 @@
 //----------------------------------------------------------------------
 // External includes (system with <>, local with "")
 //----------------------------------------------------------------------
-#include "rrlib/rtti/tTypeAnnotation.h"
 
 //----------------------------------------------------------------------
 // Internal includes with ""
@@ -73,39 +72,13 @@ namespace internal
  * Information on RPC interface type.
  * Contains function pointers to deserialization functions.
  */
-class tRPCInterfaceTypeInfo : public rrlib::rtti::tTypeAnnotation
+class tRPCInterfaceTypeInfo : public rrlib::rtti::detail::tTypeInfo::tSharedInfo
 {
 
 //----------------------------------------------------------------------
 // Public methods and typedefs
 //----------------------------------------------------------------------
 public:
-
-  tRPCInterfaceTypeInfo();
-
-  /*!
-   * Deserializes message
-   */
-  void DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id);
-
-  /*!
-   * Deserializes request
-   */
-  void DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender);
-
-  /*!
-   * Deserializes response
-   */
-  void DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage);
-
-
-//----------------------------------------------------------------------
-// Private fields and methods
-//----------------------------------------------------------------------
-private:
-
-  template <typename T>
-  friend class finroc::rpc_ports::tRPCInterfaceType;
 
   /*!
    * One such type-less entry exists for every registered method
@@ -118,11 +91,52 @@ private:
     internal::tDeserializeResponse deserialize_response;
   };
 
-  /*!
-   * Methods registered in this interface type
-   */
-  std::vector<tEntry> methods;
+  template <typename TName>
+  tRPCInterfaceTypeInfo(const rrlib::rtti::detail::tTypeInfo* type_info, const rrlib::rtti::detail::tTypeInfo* underlying_type, TName name, const std::vector<tEntry>& methods, const rrlib::rtti::tType& type) :
+    tSharedInfo(type_info, nullptr, underlying_type, std::move(name)),
+    methods(methods),
+    type(type)
+  {}
 
+  /*!
+   * Deserializes message
+   */
+  void DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id) const;
+
+  /*!
+   * Deserializes request
+   */
+  void DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender) const;
+
+  /*!
+   * Deserializes response
+   */
+  void DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage) const;
+
+  /*!
+   * Get RPC type info for specified type
+   *
+   * \param type Type to get info for
+   * \return RPC type info; nullptr if type is no RPC type
+   */
+  static const tRPCInterfaceTypeInfo* Get(rrlib::rtti::tType& type)
+  {
+    return IsRPCType(type) ? &static_cast<const tRPCInterfaceTypeInfo&>(type.SharedTypeInfo()) : nullptr;
+  }
+
+//----------------------------------------------------------------------
+// Private fields and methods
+//----------------------------------------------------------------------
+private:
+
+  template <typename T>
+  friend class finroc::rpc_ports::tRPCInterfaceType;
+
+  /*! Methods registered in this interface type */
+  const std::vector<tEntry>& methods;
+
+  /*! Reference to type */
+  rrlib::rtti::tType type;
 };
 
 //----------------------------------------------------------------------

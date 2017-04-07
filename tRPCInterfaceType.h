@@ -82,7 +82,7 @@ class tRPCInterfaceType : public rrlib::rtti::tType
 public:
 
   tRPCInterfaceType() :
-    rrlib::rtti::tType(GetTypeInfo())
+    rrlib::rtti::tType(&cTYPE_INFO)
   {
     if (GetName().length() == 0)
     {
@@ -92,21 +92,20 @@ public:
   }
 
 
+  template <size_t Tchars, typename ... TFunctions>
+  tRPCInterfaceType(const char(&name)[Tchars], TFunctions ... functions) :
+    rrlib::rtti::tType(&cTYPE_INFO)
+  {
+    GetSharedInfo().SetName(rrlib::util::tManagedConstCharPointer(name, false), &cTYPE_INFO);
+    RegisterFunctions<TFunctions...>(functions...);
+  }
+
   template <typename ... TFunctions>
   tRPCInterfaceType(const std::string& name, TFunctions ... functions) :
-    rrlib::rtti::tType(GetTypeInfo(name))
+    rrlib::rtti::tType(&cTYPE_INFO)
   {
-    internal::tRPCInterfaceTypeInfo* type_info = this->GetAnnotation<internal::tRPCInterfaceTypeInfo>();
-    if (!type_info)
-    {
-      type_info = new internal::tRPCInterfaceTypeInfo();
-      this->AddAnnotation(type_info);
-      RegisterFunctions<TFunctions...>(*type_info, functions...);
-    }
-    else
-    {
-      FINROC_LOG_PRINT(ERROR, "Attempt to initialize RPC type twice.");
-    }
+    GetSharedInfo().SetName(rrlib::util::tManagedConstCharPointer(name.c_str(), true), &cTYPE_INFO);
+    RegisterFunctions<TFunctions...>(functions...);
   }
 
   /*!
@@ -152,20 +151,26 @@ public:
 //----------------------------------------------------------------------
 private:
 
+  /*! Shared Type Info for RPC Type */
+  static internal::tRPCInterfaceTypeInfo shared_info;
+
+  /*! Type info for RPC type */
+  static constexpr rrlib::rtti::detail::tTypeInfo cTYPE_INFO = { typeid(T), rrlib::rtti::TypeTraitsVector<T>::value | rrlib::rtti::trait_flags::cIS_RPC_TYPE, &shared_info, sizeof(T) };
+
   typedef typename internal::tRPCInterfaceTypeInfo::tEntry tEntry;
 
-  class tTypeInfo : public rrlib::rtti::tType::tInfo
+  tRPCInterfaceType(bool) : rrlib::rtti::tType(&cTYPE_INFO)
   {
-  public:
-    tTypeInfo(const std::string& name) : tInfo(rrlib::rtti::tType::tClassification::OTHER, typeid(T).name(), name)
-    {
-      binary = rrlib::rtti::GetBinaryCurrentlyPerformingStaticInitialization();
-      if (binary.length() > 0)
-      {
-        RRLIB_LOG_PRINT_STATIC(DEBUG_VERBOSE_1, "RPC type ", name, " is statically loaded in '", binary, "'.");
-      }
-    }
-  };
+  }
+
+  /*!
+   * \return Vector for methods registered in this interface type
+   */
+  static std::vector<internal::tRPCInterfaceTypeInfo::tEntry>& GetMethodsVector()
+  {
+    static std::vector<internal::tRPCInterfaceTypeInfo::tEntry> vector;
+    return vector;
+  }
 
   /*!
    * \return Function ids for specified function type.
@@ -178,32 +183,26 @@ private:
     return lookup;
   }
 
-  static tTypeInfo* GetTypeInfo(const std::string& name = "")
-  {
-    static tTypeInfo type_info(name);
-    return &type_info;
-  }
-
-  void RegisterFunctions(internal::tRPCInterfaceTypeInfo& type_info) {}
+  void RegisterFunctions() {}
 
   template <typename TFunction, typename ... TFunctions>
-  void RegisterFunctions(internal::tRPCInterfaceTypeInfo& type_info, TFunction function, TFunctions ... functions)
+  void RegisterFunctions(TFunction function, TFunctions ... functions)
   {
-    RegisterFunction<TFunction>(type_info, function);
-    RegisterFunctions(type_info, functions...);
+    RegisterFunction<TFunction>(function);
+    RegisterFunctions(functions...);
   }
 
   template <typename TFunction>
-  void RegisterFunction(internal::tRPCInterfaceTypeInfo& type_info, TFunction function)
+  void RegisterFunction(TFunction function)
   {
-    GetFunctionIDLookup<TFunction>().push_back(std::pair<TFunction, uint8_t>(function, static_cast<uint8_t>(type_info.methods.size())));
+    GetFunctionIDLookup<TFunction>().push_back(std::pair<TFunction, uint8_t>(function, static_cast<uint8_t>(GetMethodsVector().size())));
     tEntry entry =
     {
       GetDeserializeMessageFunction(function),
       GetDeserializeRequestFunction(function),
       GetDeserializeResponseFunction(function)
     };
-    type_info.methods.emplace_back(entry);
+    GetMethodsVector().emplace_back(entry);
   }
 
   template <typename TReturn, typename ... TArgs>
@@ -243,8 +242,13 @@ private:
     return &tResponse::DeserializeAndExecuteCallImplementation;
   }
 
-
 };
+
+template <typename T>
+constexpr rrlib::rtti::detail::tTypeInfo tRPCInterfaceType<T>::cTYPE_INFO;
+
+template <typename T>
+internal::tRPCInterfaceTypeInfo tRPCInterfaceType<T>::shared_info(&tRPCInterfaceType<T>::cTYPE_INFO, &tRPCInterfaceType<typename rrlib::rtti::UnderlyingType<T>::type>::cTYPE_INFO, rrlib::rtti::TypeName<T>::value, tRPCInterfaceType<T>::GetMethodsVector(), tRPCInterfaceType<T>(true));
 
 //----------------------------------------------------------------------
 // End of namespace declaration

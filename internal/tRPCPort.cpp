@@ -79,7 +79,7 @@ class tRpcPortFactory : public core::tPortFactory
     creation_info.data_type = type;
     creation_info.parent = &parent;
     creation_info.name = port_name;
-    return *(new tRPCPort(creation_info, NULL));
+    return *(new tRPCPort(creation_info, nullptr));
   }
 
   virtual bool HandlesDataType(const rrlib::rtti::tType& type) override
@@ -119,13 +119,13 @@ tRPCPort* tRPCPort::GetServer(bool include_network_ports) const
     const tRPCPort* last = current;
     for (auto it = last->OutgoingConnectionsBegin(); it != last->OutgoingConnectionsEnd(); ++it)
     {
-      current = static_cast<tRPCPort*>(&(*it));
+      current = &static_cast<tRPCPort&>(it->Destination());
       break;
     }
 
-    if (current == NULL || current == last)
+    if (current == nullptr || current == last)
     {
-      return NULL;
+      return nullptr;
     }
   }
 }
@@ -138,7 +138,7 @@ core::tAbstractPort::tConnectDirection tRPCPort::InferConnectDirection(const tAb
   const tRPCPort* server_port_of_other = (other_interface_port.IsServer() || other_interface_port.GetFlag(tFlag::NETWORK_ELEMENT)) ? &other_interface_port : other_interface_port.GetServer();
   if (server_port_of_this && server_port_of_other)
   {
-    FINROC_LOG_PRINTF(WARNING, "Both ports (this and %s) are connected to a server already.", other.GetQualifiedLink().c_str());
+    FINROC_LOG_PRINT(WARNING, "Both ports (this and '", other, "') are connected to a server already.");
   }
   else if (server_port_of_this)
   {
@@ -146,7 +146,7 @@ core::tAbstractPort::tConnectDirection tRPCPort::InferConnectDirection(const tAb
   }
   else if (server_port_of_other)
   {
-    return tConnectDirection::TO_TARGET;
+    return tConnectDirection::TO_DESTINATION;
   }
 
   return tAbstractPort::InferConnectDirection(other);
@@ -159,10 +159,10 @@ void tRPCPort::OnConnect(tAbstractPort& partner, bool partner_is_destination)
   {
     for (auto it = this->OutgoingConnectionsBegin(); it != this->OutgoingConnectionsEnd(); ++it)
     {
-      if (&(*it) != &partner)
+      if (&it->Destination() != &partner)
       {
-        FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->GetQualifiedName(), "' and adding the new one to '", partner.GetQualifiedName(), "'.");
-        it->DisconnectFrom(*this);
+        FINROC_LOG_PRINT_TO(edges, WARNING, "Port was already connected to a server. Removing connection to '", it->Destination(), "' and adding the new one to '", partner, "'.");
+        it->Disconnect();
       }
     }
   }

@@ -69,12 +69,7 @@ namespace internal
 // Implementation
 //----------------------------------------------------------------------
 
-tRPCInterfaceTypeInfo::tRPCInterfaceTypeInfo() :
-  tTypeAnnotation(),
-  methods()
-{}
-
-void tRPCInterfaceTypeInfo::DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id)
+void tRPCInterfaceTypeInfo::DeserializeMessage(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id) const
 {
   if (function_id < methods.size())
   {
@@ -86,7 +81,7 @@ void tRPCInterfaceTypeInfo::DeserializeMessage(rrlib::serialization::tInputStrea
   }
 }
 
-void tRPCInterfaceTypeInfo::DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender)
+void tRPCInterfaceTypeInfo::DeserializeRequest(rrlib::serialization::tInputStream& stream, tRPCPort& port, uint8_t function_id, tResponseSender& response_sender) const
 {
   if (function_id < methods.size())
   {
@@ -98,11 +93,11 @@ void tRPCInterfaceTypeInfo::DeserializeRequest(rrlib::serialization::tInputStrea
   }
 }
 
-void tRPCInterfaceTypeInfo::DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage)
+void tRPCInterfaceTypeInfo::DeserializeResponse(rrlib::serialization::tInputStream& stream, uint8_t function_id, tResponseSender& response_sender, tCallStorage* request_storage) const
 {
   if (function_id < methods.size())
   {
-    (*methods[function_id].deserialize_response)(stream, this->GetAnnotatedType(), function_id, response_sender, request_storage);
+    (*methods[function_id].deserialize_response)(stream, type, function_id, response_sender, request_storage);
   }
   else
   {

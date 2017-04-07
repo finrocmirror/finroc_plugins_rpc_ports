@@ -340,7 +340,7 @@ public:
   /*!
    * \return Wrapped RPC port
    */
-  internal::tRPCPort* GetWrapped()
+  internal::tRPCPort* GetWrapped() const
   {
     return static_cast<internal::tRPCPort*>(tPortWrapperBase::GetWrapped());
   }

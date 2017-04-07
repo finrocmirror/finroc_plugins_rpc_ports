@@ -90,7 +90,7 @@ enum class tCallType
  */
 inline bool IsRPCType(const rrlib::rtti::tType& type)
 {
-  return (type.GetSize() == 0) && (type.GetType() == rrlib::rtti::tType::tClassification::OTHER);
+  return type.GetTypeTraits() & rrlib::rtti::trait_flags::cIS_RPC_TYPE;
 }
 
 
