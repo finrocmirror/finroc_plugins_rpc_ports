@@ -155,7 +155,7 @@ private:
   static internal::tRPCInterfaceTypeInfo shared_info;
 
   /*! Type info for RPC type */
-  static constexpr rrlib::rtti::detail::tTypeInfo cTYPE_INFO = { typeid(T), rrlib::rtti::TypeTraitsVector<T>::value | rrlib::rtti::trait_flags::cIS_RPC_TYPE, &shared_info, sizeof(T) };
+  static constexpr rrlib::rtti::detail::tTypeInfo cTYPE_INFO = { typeid(T), rrlib::rtti::TypeTraitsVector<T>::value | rrlib::rtti::trait_flags::cIS_RPC_TYPE, &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &shared_info, sizeof(T) };
 
   typedef typename internal::tRPCInterfaceTypeInfo::tEntry tEntry;
 
@@ -248,7 +248,7 @@ template <typename T>
 constexpr rrlib::rtti::detail::tTypeInfo tRPCInterfaceType<T>::cTYPE_INFO;
 
 template <typename T>
-internal::tRPCInterfaceTypeInfo tRPCInterfaceType<T>::shared_info(&tRPCInterfaceType<T>::cTYPE_INFO, &tRPCInterfaceType<typename rrlib::rtti::UnderlyingType<T>::type>::cTYPE_INFO, rrlib::rtti::TypeName<T>::value, tRPCInterfaceType<T>::GetMethodsVector(), tRPCInterfaceType<T>(true));
+internal::tRPCInterfaceTypeInfo tRPCInterfaceType<T>::shared_info(&tRPCInterfaceType<T>::cTYPE_INFO, rrlib::rtti::TypeName<T>::value, tRPCInterfaceType<T>::GetMethodsVector(), tRPCInterfaceType<T>(true));
 
 //----------------------------------------------------------------------
 // End of namespace declaration
