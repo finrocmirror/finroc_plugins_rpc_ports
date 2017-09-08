@@ -248,7 +248,7 @@ template <typename T>
 constexpr rrlib::rtti::detail::tTypeInfo tRPCInterfaceType<T>::cTYPE_INFO;
 
 template <typename T>
-internal::tRPCInterfaceTypeInfo tRPCInterfaceType<T>::shared_info(&tRPCInterfaceType<T>::cTYPE_INFO, rrlib::rtti::TypeName<T>::value, tRPCInterfaceType<T>::GetMethodsVector(), tRPCInterfaceType<T>(true));
+internal::tRPCInterfaceTypeInfo tRPCInterfaceType<T>::shared_info(&tRPCInterfaceType<T>::cTYPE_INFO, rrlib::rtti::TypeName<T>::value, tRPCInterfaceType<T>::GetMethodsVector(), tRPCInterfaceType<T>(true), rrlib::rtti::AutoRegister<T>::Register());
 
 //----------------------------------------------------------------------
 // End of namespace declaration

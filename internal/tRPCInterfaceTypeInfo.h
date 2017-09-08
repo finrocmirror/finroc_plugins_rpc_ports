@@ -92,8 +92,8 @@ public:
   };
 
   template <typename TName>
-  tRPCInterfaceTypeInfo(const rrlib::rtti::detail::tTypeInfo* type_info, TName name, const std::vector<tEntry>& methods, const rrlib::rtti::tType& type) :
-    tSharedInfo(type_info, std::move(name)),
+  tRPCInterfaceTypeInfo(const rrlib::rtti::detail::tTypeInfo* type_info, TName name, const std::vector<tEntry>& methods, const rrlib::rtti::tType& type, int auto_registered) :
+    tSharedInfo(type_info, std::move(name), nullptr, 0),
     methods(methods),
     type(type)
   {}
