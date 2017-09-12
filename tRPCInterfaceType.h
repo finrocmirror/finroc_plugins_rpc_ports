@@ -155,7 +155,7 @@ private:
   static internal::tRPCInterfaceTypeInfo shared_info;
 
   /*! Type info for RPC type */
-  static constexpr rrlib::rtti::detail::tTypeInfo cTYPE_INFO = { typeid(T), rrlib::rtti::TypeTraitsVector<T>::value | rrlib::rtti::trait_flags::cIS_RPC_TYPE, &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &shared_info, sizeof(T) };
+  static constexpr rrlib::rtti::detail::tTypeInfo cTYPE_INFO = { typeid(T), static_cast<uint>(rrlib::rtti::tTypeClassification::RPC_TYPE), &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &rrlib::rtti::detail::tTypeInfo::cNULL_TYPE_INFO, &shared_info, sizeof(T) };
 
   typedef typename internal::tRPCInterfaceTypeInfo::tEntry tEntry;
 
