@@ -72,7 +72,7 @@ typename tCallStorage::tCallStorageBufferPool tCallStorage::call_storage_buffer_
 tCallStorage::tCallStorage() :
   empty(true),
   mutex(),
-  condition_variable(),
+  condition_variable(mutex),
   waiting(false),
   future_status((int)tFutureStatus::PENDING),
   call_ready_for_sending(NULL),
@@ -121,7 +121,7 @@ void tCallStorage::SetException(tFutureStatus new_status)
 
   rrlib::thread::tLock lock(mutex);
   future_status.store((int)new_status);
-  condition_variable.notify_one();
+  condition_variable.Notify(lock);
   if (response_handler)
   {
     lock.Unlock();

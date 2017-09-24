@@ -168,7 +168,7 @@ public:
     rrlib::thread::tLock lock(storage->mutex);
     *result_buffer = std::move(value);
     storage->future_status.store((int)tFutureStatus::READY);
-    storage->condition_variable.notify_one();
+    storage->condition_variable.Notify(lock);
     if (storage->response_handler)
     {
       lock.Unlock();
@@ -191,7 +191,7 @@ public:
     rrlib::thread::tLock lock(storage->mutex);
     *result_buffer = value;
     storage->future_status.store((int)tFutureStatus::READY);
-    storage->condition_variable.notify_one();
+    storage->condition_variable.Notify(lock);
     if (storage->response_handler)
     {
       lock.Unlock();

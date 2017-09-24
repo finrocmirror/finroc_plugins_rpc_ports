@@ -152,9 +152,9 @@ public:
           throw tRPCException(tFutureStatus::INVALID_CALL);
         }
         storage->waiting = true;
-        std::cv_status cv_status = storage->condition_variable.wait_for(lock.GetSimpleLock(), timeout);
+        auto cv_status = storage->condition_variable.Wait(lock, timeout, false);
         storage->waiting = false;
-        if (cv_status == std::cv_status::timeout)
+        if (cv_status == rrlib::thread::tConditionVariableStatus::TIMEOUT)
         {
           throw tRPCException(tFutureStatus::TIMEOUT);
         }

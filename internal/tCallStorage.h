@@ -315,7 +315,7 @@ private:
   rrlib::thread::tMutex mutex;
 
   /*! Condition variable for thread synchronization */
-  std::condition_variable condition_variable;
+  rrlib::thread::tConditionVariable condition_variable;
 
   /*! True while thread is waiting on condition variable */
   bool waiting;

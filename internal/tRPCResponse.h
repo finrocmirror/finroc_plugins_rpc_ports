@@ -184,7 +184,7 @@ public:
 //    rrlib::thread::tLock lock(storage.mutex);
     result_buffer = std::move(return_value);
     storage.future_status.store((int)tFutureStatus::READY);
-//    storage.condition_variable.notify_one();
+//    storage.condition_variable.Notify();
 //    if (storage.response_handler)
 //    {
 //      static_cast<tResponseHandler<tReturnInternal>*>(storage.response_handler)->HandleResponse(return_value);
